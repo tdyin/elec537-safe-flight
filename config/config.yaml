@@ -1,0 +1,58 @@
+# Configuration file for Safe Path obstacle detection system
+
+# Vision Module Configuration
+vision:
+  model_path: "models/obstacle_detector.pth"
+  use_gpu: true
+  target_size: [224, 224]
+  confidence_threshold: 0.5
+  
+  # Classical CV parameters
+  classical:
+    canny_low: 50
+    canny_high: 150
+    hough_threshold: 50
+    min_line_length: 30
+    max_line_gap: 10
+
+# LiDAR Module Configuration
+lidar:
+  max_range: 10.0  # meters
+  min_range: 0.1   # meters
+  voxel_size: 0.05  # meters
+  
+  # Clustering parameters
+  cluster_tolerance: 0.1
+  min_cluster_size: 10
+  max_cluster_size: 10000
+  
+  # Thin obstacle detection
+  thin_obstacle_threshold: 0.05  # meters
+
+# Sensor Fusion Configuration
+fusion:
+  vision_weight: 0.5
+  lidar_weight: 0.5
+  confidence_threshold: 0.5
+  
+# Drone Configuration
+drone:
+  uri: "radio://0/80/2M/E7E7E7E7E7"
+  max_speed: 0.5  # m/s
+  safety_distance: 0.5  # meters
+  avoidance_gain: 1.0
+  
+  # Control loop frequency
+  control_frequency: 50  # Hz
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_directory: "logs"
+  
+# Data Collection Configuration
+data:
+  save_detections: true
+  save_sensor_data: false
+  output_directory: "data/processed"
