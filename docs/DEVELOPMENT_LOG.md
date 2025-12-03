@@ -2,7 +2,96 @@
 
 **Project:** Safe Flight - Vision-Based Obstacle Avoidance  
 **Repository:** tdyin/elec537-safe-flight  
-**Branch:** feat/sim
+**Branch:** feat/real
+
+---
+
+## December 3, 2025 - Phase 1: Codebase Refactoring Complete
+
+### Objective
+Implement Phase 1 of the hardware deployment plan: refactor codebase to separate shared core logic from simulation and hardware-specific code.
+
+### Changes Made
+
+**New Directory Structure:**
+```
+src/
+├── core/                    # NEW: Shared abstractions
+│   ├── __init__.py
+│   ├── base_interface.py    # DroneInterface ABC
+│   ├── types.py             # SensorData, Position, etc.
+│   ├── safety.py            # SafetyMonitor state machine
+│   └── navigation.py        # Waypoint navigation utilities
+├── sim/                     # Simulation-specific
+│   ├── __init__.py          # Updated exports
+│   ├── bridge.py            # TCP bridge (existing)
+│   └── webots_interface.py  # NEW: Moved from drone/
+├── hardware/                # NEW: Hardware-specific
+│   ├── __init__.py
+│   ├── crazyflie_interface.py  # cflib integration
+│   ├── aideck_camera.py     # AI deck streaming
+│   └── sensor_logger.py     # cflib LogConfig wrapper
+├── drone/                   # Backward compat + controllers
+│   └── __init__.py          # Re-exports for compatibility
+config/                      # NEW: Split configs
+├── sim.yaml                 # Simulation configuration
+└── hardware.yaml            # Hardware configuration
+```
+
+**Key New Modules:**
+
+1. `src/core/base_interface.py` - Abstract base class defining drone interface contract
+   - `connect()`, `disconnect()`, `get_sensor_data()`
+   - `get_position()`, `get_orientation()`, `get_velocity()`
+   - `send_velocity_command()`, `takeoff()`, `land()`, `emergency_stop()`
+
+2. `src/core/types.py` - Shared data structures
+   - `Position`, `Orientation`, `Velocity` dataclasses
+   - `SensorData` container with dict conversion
+   - `VelocityCommand`, `Waypoint` for navigation
+   - `SafetyState` enum
+
+3. `src/core/safety.py` - Consolidated safety monitor
+   - State machine: INITIALIZING → READY → ARMED → FLYING → LANDING → LANDED
+   - Emergency triggers: LOW_BATTERY, GEOFENCE_BREACH, EXCESSIVE_TILT, etc.
+   - Callbacks for emergency and warning events
+
+4. `src/sim/webots_interface.py` - Refactored simulation interface
+   - Inherits from `DroneInterface` ABC
+   - Integrates with `SafetyMonitor`
+   - Implements `takeoff()` and `land()` methods
+
+5. `src/hardware/crazyflie_interface.py` - New hardware interface
+   - Uses cflib and MotionCommander
+   - Forward-only mode for initial testing
+   - Deck detection and validation
+
+6. `src/hardware/sensor_logger.py` - cflib logging wrapper
+   - StateEstimate, Stabilizer, Battery LogConfigs
+   - Thread-safe sensor data caching
+
+7. `src/hardware/aideck_camera.py` - AI Deck camera streaming
+   - WiFi TCP connection
+   - JPEG frame decoding
+   - Background receiver thread
+
+**File Renames:**
+- `launch.py` → `launch_sim.py`
+
+**Backward Compatibility:**
+- `src.drone.WebotsInterface` still works (re-exported from `src.sim`)
+- Existing code using old imports continues to function
+
+### Rationale
+- Clean separation enables parallel development of sim and hardware features
+- ABC ensures consistent interface across environments
+- Consolidated safety logic reduces duplication and potential bugs
+- Split configs prevent hardware parameters from affecting simulation
+
+### Impact
+- Foundation laid for Phase 2-8 of hardware deployment
+- All existing tests should still pass
+- New hardware code can be developed and tested independently
 
 ---
 

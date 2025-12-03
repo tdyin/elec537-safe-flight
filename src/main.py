@@ -15,7 +15,14 @@ from loguru import logger
 from src.vision.depth_detector import DepthDetector
 from src.drone.depth_controller import DepthNavigationController
 from src.drone import CrazyflieInterface
-from src.drone.webots_interface import WebotsInterface
+from src.sim.webots_interface import WebotsInterface
+
+# Hardware interface available when cflib installed
+try:
+    from src.hardware import CrazyflieHardwareInterface
+    HARDWARE_AVAILABLE = True
+except ImportError:
+    HARDWARE_AVAILABLE = False
 
 
 def load_config(config_path: str) -> dict:

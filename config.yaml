@@ -1,3 +1,14 @@
+# Safe Flight - Default Configuration
+# 
+# This is the default config used when no --config argument is provided.
+# For explicit environment configs, use:
+#   - config/sim.yaml      (simulation-specific settings)
+#   - config/hardware.yaml (real drone with conservative settings)
+#
+# Usage:
+#   python launch_sim.py                    # Uses this file
+#   python launch_sim.py --config config/sim.yaml  # Explicit sim config
+
 # Vision Module Configuration
 vision:
   # Depth-based vision for obstacle detection
