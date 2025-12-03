@@ -70,7 +70,7 @@ class NavigationController:
             clear_distance: Distance to move when clearing obstacle (m)
             enable_visualization: Enable live depth visualization
             save_viz_frames: Save visualization frames to disk
-            config: Optional configuration dictionary from config.yaml
+            config: Optional configuration dictionary
         """
         # Load config values
         drone_config = config.get('drone', {}) if config else {}

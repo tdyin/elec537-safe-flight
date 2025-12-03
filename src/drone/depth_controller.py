@@ -56,7 +56,7 @@ class DepthNavigationController:
             replan_interval: Replan path every N frames
             path_smoothing: Smoothing method ('bezier', 'spline', or 'none')
             use_stable_avoidance: Use StableAvoidanceController for improved stability
-            config: Optional configuration dictionary from config.yaml
+            config: Optional configuration dictionary from config/sim.yaml or config/hardware.yaml
         """
         # Load config values if provided
         drone_config = config.get('drone', {}) if config else {}

@@ -32,7 +32,7 @@ class WebotsInterface(DroneInterface):
             host: Host address for simulation bridge
             port: Port number for simulation bridge
             uri: Identifier for the simulated drone
-            config: Optional configuration dictionary from config.yaml
+            config: Optional configuration dictionary
         """
         self.uri = uri
         self._is_connected = False

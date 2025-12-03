@@ -220,7 +220,11 @@ The system uses A* path planning with Bezier smoothing:
 
 ## Configuration
 
-All parameters are in `config.yaml`. Key sections:
+Configuration is split by environment:
+- `config/sim.yaml` - Simulation settings
+- `config/hardware.yaml` - Hardware settings (conservative)
+
+Key sections:
 
 ### Vision
 ```yaml
@@ -305,15 +309,14 @@ conda activate safe-flight
 ```
 elec537-safe-flight/
 ├── config/                  # Configuration files
-│   ├── sim.yaml            # Simulation config (planned)
-│   └── hardware.yaml       # Hardware config (planned)
-├── config.yaml              # Current unified config
-├── launch.py                # SITL launcher
+│   ├── sim.yaml            # Simulation config
+│   └── hardware.yaml       # Hardware config
+├── launch_sim.py            # SITL launcher
 ├── environment.yaml         # Conda environment
 ├── models/                  # ONNX models
 ├── src/                     # Main Python code
-│   ├── core/               # Shared library (planned)
-│   ├── hardware/           # Hardware interfaces (planned)
+│   ├── core/               # Shared library
+│   ├── hardware/           # Hardware interfaces
 │   ├── sim/                # Simulation code
 │   ├── drone/              # Interfaces & controllers
 │   ├── vision/             # Detection & depth

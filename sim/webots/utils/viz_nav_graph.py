@@ -49,8 +49,8 @@ except ImportError:
 
 
 def load_config():
-    """Load configuration from config.yaml."""
-    config_path = project_root / 'config.yaml'
+    """Load configuration from config/sim.yaml."""
+    config_path = project_root / 'config' / 'sim.yaml'
     if config_path.exists():
         with open(config_path, 'r') as f:
             return yaml.safe_load(f)

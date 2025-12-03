@@ -28,7 +28,7 @@ class WebotsInterface(CrazyflieInterface):
             host: Host address for simulation bridge
             port: Port number for simulation bridge
             uri: Identifier for the simulated drone
-            config: Optional configuration dictionary from config.yaml
+            config: Optional configuration dictionary
         """
         # Don't call parent __init__ to avoid cflib initialization
         self.uri = uri

@@ -61,7 +61,7 @@ class ObstacleDetector:
             caution_distance: Distance for caution zone (meters)
             far_distance: Distance for far zone (meters)
             depth_scale: Scale factor to convert depth to meters
-            config: Optional configuration dictionary from config.yaml
+            config: Optional configuration dictionary
         """
         if not VISION_AVAILABLE:
             raise RuntimeError("ONNX runtime not available")

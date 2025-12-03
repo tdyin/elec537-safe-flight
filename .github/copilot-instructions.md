@@ -11,7 +11,7 @@ The system uses **depth-based vision** for obstacle detection:
 - Control: `drone/depth_controller.py` → stable avoidance and path planning
 - Fusion: `fusion/enhanced_fusion.py` → depth-aware obstacle mapping
 
-Vision mode is configured in `config.yaml` under `vision.mode: "depth"`.
+Vision mode is configured in `config/sim.yaml` (simulation) or `config/hardware.yaml` (real drone) under `vision.mode: "depth"`.
 
 ### SITL Communication Architecture
 The system uses a **TCP socket bridge** between external Python control and Webots simulation:
@@ -60,7 +60,7 @@ python launch.py --analyze            # Analyze latest log
 Models live in `models/` and are downloaded via `scripts/download_models.py`:
 - Depth: MiDaS v2.1 Small (63.7 MB)
 
-Model paths configured in `config.yaml` under `vision.depth`.
+Model paths configured in `config/sim.yaml` or `config/hardware.yaml` under `vision.depth`.
 ### Testing
 ```bash
 pytest tests/ -v                    # Full test suite
@@ -73,7 +73,9 @@ Test structure follows pytest conventions (`tests/test_*.py`, classes `Test*`, f
 ## Code Conventions
 
 ### Configuration-Driven Behavior
-**Never hardcode paths or parameters** - use `config.yaml`:
+**Never hardcode paths or parameters** - use config files:
+- `config/sim.yaml` - Simulation configuration
+- `config/hardware.yaml` - Hardware configuration (conservative settings)
 - Vision model paths: `vision.depth.model_path`
 - Navigation parameters: `drone.navigation.*`
 - Fusion weights: `fusion.depth_weight`

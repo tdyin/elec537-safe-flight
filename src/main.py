@@ -57,8 +57,8 @@ def setup_logging(config: dict, mode: str = 'navigation'):
 def main():
     """Main execution function."""
     parser = argparse.ArgumentParser(description='Safe Flight - Drone Obstacle Detection')
-    parser.add_argument('--config', type=str, default='config.yaml',
-                       help='Path to configuration file')
+    parser.add_argument('--config', type=str, default='config/sim.yaml',
+                       help='Path to configuration file (config/sim.yaml or config/hardware.yaml)')
     parser.add_argument('--mode', type=str, default='detection',
                        choices=['detection', 'navigation', 'data_collection'],
                        help='Operating mode')

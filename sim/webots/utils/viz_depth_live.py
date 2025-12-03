@@ -8,10 +8,10 @@ Displays live depth map analysis during simulation including:
 - Avoidance direction arrows (lateral and vertical)
 - Flight status information
 
-Can be enabled via config.yaml or command line.
+Can be enabled via config or command line.
 
 Usage:
-    # Add to config.yaml:
+    # Add to config/sim.yaml:
     visualization:
       enabled: true
       depth_display: true

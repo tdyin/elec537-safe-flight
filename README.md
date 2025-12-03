@@ -102,7 +102,9 @@ elec537-safe-flight/
 │   ├── SETUP.md             # Initial setup guide
 │   ├── API.md               # API reference
 │   └── archive/             # Historical documentation
-├── config.yaml              # Main configuration
+├── config/                  # Configuration files
+│   ├── sim.yaml             # Simulation configuration
+│   └── hardware.yaml        # Hardware configuration
 ├── environment.yaml         # Conda environment spec
 └── README.md                # This file
 ```
@@ -125,7 +127,8 @@ elec537-safe-flight/
 
 ### 📦 Configuration Files
 
-- `config.yaml` - Main configuration (models, parameters, etc.)
+- `config/sim.yaml` - Simulation configuration
+- `config/hardware.yaml` - Hardware configuration (conservative settings)
 - `environment.yaml` - Conda environment definition
 - `requirements.txt` - Python dependencies
 
@@ -174,7 +177,7 @@ The project includes a unified Webots controller:
 
 - **crazyflie_sitl** - SITL with external control and autonomous vision mode
 
-Model paths are configured in `config.yaml`.
+Model paths are configured in `config/sim.yaml` or `config/hardware.yaml`.
 
 ## Quick Start
 

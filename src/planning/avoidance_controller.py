@@ -29,8 +29,8 @@ class AvoidanceConfig:
     """
     Configuration for avoidance controller.
     
-    These defaults can be overridden by config.yaml values through
-    SegmentationNavigationController. See config.yaml drone.avoidance section.
+    These defaults can be overridden by config file values through
+    SegmentationNavigationController. See drone.avoidance section.
     """
     # Speed limits (m/s)
     max_speed: float = 0.5

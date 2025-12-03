@@ -250,7 +250,7 @@ def print_usage_instructions():
     logger.info("Usage Instructions")
     logger.info("=" * 70)
     
-    logger.info("\nUpdate config.yaml with your model paths:")
+    logger.info("\nUpdate config/sim.yaml or config/hardware.yaml with your model paths:")
     logger.info("\n  For object detection mode:")
     logger.info("    vision:")
     logger.info("      mode: 'detection'")
@@ -266,7 +266,7 @@ def print_usage_instructions():
     
     logger.info("\nNext steps:")
     logger.info("  1. Run tests: python scripts/test.py --vision")
-    logger.info("  2. Launch SITL: python launch.py")
+    logger.info("  2. Launch SITL: python launch_sim.py")
 
 
 def main():

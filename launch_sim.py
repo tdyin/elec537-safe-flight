@@ -22,9 +22,9 @@ from typing import Optional, List
 import yaml
 
 
-def load_config() -> dict:
-    """Load configuration from config.yaml."""
-    config_path = Path(__file__).parent / 'config.yaml'
+def load_config(config_file: str = 'config/sim.yaml') -> dict:
+    """Load configuration from YAML file."""
+    config_path = Path(__file__).parent / config_file
     if config_path.exists():
         with open(config_path) as f:
             return yaml.safe_load(f)
@@ -120,7 +120,7 @@ def launch_webots(world_file: str, no_gui: bool = False,
         waypoints: List of waypoints [[x,y,z], ...] for path navigation
         goal: Single goal position [x, y, z]
         enable_viz: Enable real-time visualization
-        config: Configuration dict from config.yaml
+        config: Configuration dict from config/sim.yaml
         
     Returns:
         Subprocess handle for Webots
@@ -163,7 +163,7 @@ def launch_webots(world_file: str, no_gui: bool = False,
     if enable_viz:
         env['ENABLE_NAV_VIZ'] = '1'
     
-    # Pass navigation config from config.yaml
+    # Pass navigation config from config file
     if config:
         nav_config = config.get('drone', {}).get('navigation', {})
         sim_config = config.get('drone', {}).get('simulation', {})
