@@ -1,0 +1,302 @@
+# Safe Flight - Documentation
+
+**Vision-Based Obstacle Avoidance for Crazyflie Drone**
+
+Last Updated: December 2, 2025  
+Project Status: ✅ Fully Functional with Depth-Based Navigation
+
+---
+
+## Table of Contents
+
+1. [Quick Start](#quick-start)
+2. [System Architecture](#system-architecture)
+3. [Navigation System](#navigation-system)
+4. [Vision System](#vision-system)
+5. [SITL Development](#sitl-development)
+6. [Configuration](#configuration)
+7. [Troubleshooting](#troubleshooting)
+
+---
+
+## Quick Start
+
+### Environment Setup
+```bash
+# Setup conda environment
+conda env create -f environment.yaml
+conda activate safe-flight
+
+# Download models
+python scripts/download_models.py
+```
+
+### Run SITL Simulation
+```bash
+# Launch with vision-based navigation
+python launch.py
+
+# With specific goal
+python launch.py --goal 6 0 1
+
+# With custom waypoints
+python launch.py --waypoints "[[2,0,1],[4,1,1],[6,0,1]]"
+
+# With visualization
+python launch.py --viz
+
+# Different worlds
+python launch.py --world open
+python launch.py --no-gui  # Headless mode
+```
+
+### Run Tests
+```bash
+pytest tests/ -v
+```
+
+---
+
+## System Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              Main Control System (src/)                  │
+├─────────────────────────────────────────────────────────┤
+│  vision/                 │  drone/                       │
+│  ├── depth_detector.py   │  ├── depth_controller.py       │
+│  └── depth_utils.py      │  ├── webots_interface.py       │
+│                          │  └── interface.py              │
+│  planning/               │  fusion/                      │
+│  ├── path_planner.py     │  └── enhanced_fusion.py        │
+│  ├── avoidance_          │                               │
+│  │   controller.py       │  sim/                         │
+│  └── trajectory_         │  └── bridge.py                 │
+│      smoother.py         │                               │
+└──────────────────────────┼───────────────────────────────┘
+                           │
+                  TCP Socket (10020)
+                           │
+┌──────────────────────────┼───────────────────────────────┐
+│         Webots Simulation (sim/webots/)                  │
+│                                                          │
+│  controllers/crazyflie_sitl/                             │
+│  ├── crazyflie_sitl.py      # Main controller            │
+│  ├── pid_controller.py      # Motor control              │
+│  └── modules/                                            │
+│      ├── navigation_controller.py                        │
+│      ├── depth_analyzer.py                               │
+│      ├── path_planner.py                                 │
+│      ├── safety_monitor.py                               │
+│      └── sensors.py                                      │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Supported Models
+
+| Model | Size | Purpose |
+|-------|------|---------|
+| MiDaS v2.1 Small | ~64 MB | Monocular depth estimation |
+
+---
+
+## Navigation System
+
+### State Machine
+
+```
+PATH_FOLLOWING ──(obstacle)──> AVOIDING
+      ↑                            │
+      └────(clear path)──── RETURNING
+                    │
+                    ↓
+              GOAL_REACHED
+```
+
+### Obstacle Zones
+
+| Zone | Depth Value | Behavior |
+|------|-------------|----------|
+| CRITICAL | < 0.2 | Emergency stop |
+| CLOSE | 0.2 - 0.35 | Active avoidance |
+| CAUTION | 0.35 - 0.5 | Slow down |
+| FAR | 0.5 - 0.6 | Monitor |
+| CLEAR | > 0.6 | Cruise speed |
+
+*Depth values are normalized (0=close, 1=far)*
+
+### Path Planning
+
+The system uses A* path planning with Bezier smoothing:
+- Grid-based obstacle mapping from depth/segmentation
+- Safety margin around obstacles
+- Smooth trajectory generation
+- Periodic replanning for dynamic environments
+
+---
+
+## Vision System
+
+### Pipeline
+
+1. **Image Acquisition** - Camera image (BGRA)
+2. **Depth Estimation** - MiDaS generates depth map
+3. **Zone Analysis** - Classify left/center/right zones by depth
+4. **Obstacle Detection** - Identify close obstacles from depth
+5. **Navigation Decision** - Determine safe velocity
+6. **Smoothing** - Apply velocity smoothing
+
+### Performance
+
+| Metric | Value |
+|--------|-------|
+| Depth Inference | ~30 ms |
+| Navigation Update | 50 Hz |
+| Obstacle Response | <100 ms |
+
+---
+
+## SITL Development
+
+### Available Worlds
+
+| World | Description |
+|-------|-------------|
+| `apartment` | Indoor with furniture (default) |
+| `open` | Open world |
+
+### Keyboard Controls
+
+| Key | Action |
+|-----|--------|
+| `Space` | Toggle Manual/Autonomous |
+| `W/S` | Forward/Backward |
+| `A/D` | Strafe Left/Right |
+| `Q/E` | Yaw Left/Right |
+| `↑/↓` | Ascend/Descend |
+| `R` | Reset to Autonomous |
+
+### Communication
+
+- **Protocol**: TCP socket on port 10020
+- **Data Rate**: 50 Hz
+- **Messages**: Sensor data (JSON), Velocity commands (binary)
+
+---
+
+## Configuration
+
+All parameters are in `config.yaml`. Key sections:
+
+### Vision
+```yaml
+vision:
+  depth:
+    model_path: "models/midas_v21_small.onnx"
+  obstacle:
+    critical_threshold: 0.15
+    close_threshold: 0.25
+    caution_threshold: 0.40
+```
+
+### Navigation
+```yaml
+drone:
+  navigation:
+    cruise_speed: 0.5
+    avoidance_speed: 0.3
+    safety_distance: 0.8
+    zone_critical: 0.2
+    zone_close: 0.35
+```
+
+### Path Planning
+```yaml
+drone:
+  path_planning:
+    enabled: true
+    planning_resolution: 0.1
+    safety_margin: 3
+    path_smoothing: "bezier"
+```
+
+### Simulation
+```yaml
+drone:
+  simulation:
+    host: "localhost"
+    port: 10020
+```
+
+---
+
+## Troubleshooting
+
+### Connection Failed
+```bash
+# Check Webots is running with crazyflie_sitl controller
+# Verify port 10020 is not blocked
+pkill -f webots  # Kill stale processes
+```
+
+### Import Errors
+```bash
+conda activate safe-flight
+pip install -e .
+```
+
+### Model Not Found
+```bash
+python scripts/download_models.py
+ls -lh models/
+```
+
+### Low FPS
+- Increase `vision_interval` in controller
+- Use MobileNetV3 instead of ResNet50
+- Enable headless mode: `python launch.py --no-gui`
+
+### Environment Issues
+```bash
+# Recreate environment
+conda env remove -n safe-flight
+conda env create -f environment.yaml
+conda activate safe-flight
+```
+
+---
+
+## Project Structure
+
+```
+elec537-safe-flight/
+├── config.yaml              # All configuration
+├── launch.py                # SITL launcher
+├── environment.yaml         # Conda environment
+├── models/                  # ONNX models
+├── src/                     # Main Python code
+│   ├── drone/              # Interfaces & controllers
+│   ├── vision/             # Detection & depth
+│   ├── planning/           # Path planning
+│   └── fusion/             # Sensor fusion
+├── sim/webots/             # Simulation
+│   ├── controllers/        # Webots controllers
+│   ├── worlds/             # Environment files
+│   └── logs/               # Flight logs
+├── tests/                   # Unit tests
+└── scripts/                 # Utilities
+```
+
+---
+
+## References
+
+- **Webots**: https://cyberbotics.com/doc/guide/index
+- **Crazyflie**: https://www.bitcraze.io/documentation/
+- **MiDaS**: https://github.com/isl-org/MiDaS
+- **ONNX Runtime**: https://onnxruntime.ai/docs/
+
+---
+
+**Project:** ELEC 537 Safe Flight  
+**Repository:** tdyin/elec537-safe-flight

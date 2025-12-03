@@ -1,3 +1,4 @@
+!*/.gitkeep
 # Python
 __pycache__/
 *.py[cod]
@@ -35,6 +36,9 @@ ENV/
 *~
 .DS_Store
 
+# Webots
+*.wbproj
+
 # Jupyter Notebook
 .ipynb_checkpoints
 
@@ -44,8 +48,10 @@ ENV/
 # Data files
 data/raw/*
 data/processed/*
+data/visualization/*
 !data/raw/.gitkeep
 !data/processed/.gitkeep
+!data/visualization/.gitkeep
 *.h5
 *.hdf5
 *.pkl
@@ -59,8 +65,8 @@ models/*.tflite
 !models/.gitkeep
 
 # Logs
-logs/
 *.log
+!logs/.gitkeep
 
 # Testing
 .pytest_cache/
