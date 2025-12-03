@@ -54,6 +54,7 @@ class CrazyflieHardwareInterface(DroneInterface):
         
         # Load config
         drone_config = config.get('drone', {}) if config else {}
+        self._drone_config = drone_config  # Store for sensor logger
         nav_config = drone_config.get('navigation', {})
         hw_config = drone_config.get('hardware', {})
         
@@ -101,10 +102,14 @@ class CrazyflieHardwareInterface(DroneInterface):
                 self.scf.close_link()
                 return False
             
-            # Initialize sensor logging
+            # Initialize sensor logging with drone config
             from .sensor_logger import SensorLogger
-            self.sensor_logger = SensorLogger(self.scf, {})
+            self.sensor_logger = SensorLogger(self.scf, self._drone_config)
             self.sensor_logger.setup_logging()
+            
+            # Wait for initial sensor data
+            if not self.sensor_logger.wait_for_data(timeout=2.0):
+                logger.warning("[HARDWARE] Timeout waiting for sensor data")
             
             self._is_connected = True
             self.safety.set_ready()
@@ -124,6 +129,14 @@ class CrazyflieHardwareInterface(DroneInterface):
             except Exception:
                 pass
             self.mc = None
+        
+        # Stop sensor logging
+        if self.sensor_logger:
+            try:
+                self.sensor_logger.stop_logging()
+            except Exception:
+                pass
+            self.sensor_logger = None
         
         if self.scf:
             self.scf.close_link()

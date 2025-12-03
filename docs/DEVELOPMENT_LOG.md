@@ -6,6 +6,90 @@
 
 ---
 
+## December 3, 2025 - Phase 3: cflib Logging System Complete
+
+### Objective
+Complete Phase 3 of the hardware deployment plan: implement sensor data acquisition via cflib LogConfig subscriptions for real Crazyflie hardware.
+
+### Changes Made
+
+**Enhanced `src/hardware/sensor_logger.py`:**
+
+1. **Multi-Ranger Support (Optional)**
+   - Added `_setup_range_log()` for Multi-Ranger deck distance logging
+   - Range values: front, back, left, right, up, zrange
+   - Automatic deck detection via log TOC: `_try_multiranger_detection()`
+   - Millimeter to meter conversion with out-of-range handling (>4000mm → None)
+
+2. **Improved Configuration Integration**
+   - Now accepts full `drone` config section from `hardware.yaml`
+   - Configurable rates: `state_estimate_rate_ms`, `stabilizer_rate_ms`, `battery_rate_ms`, `range_rate_ms`
+   - Reads `hardware.multiranger_required` flag
+
+3. **Enhanced Data Storage**
+   - Stores both degrees and radians for orientation: `roll`, `roll_deg`, etc.
+   - Added `altitude` field (copies `stateEstimate.z`)
+   - Added `last_update` dict tracking per-log-type timestamps
+
+4. **New Convenience Methods**
+   - `get_position()` → (x, y, z) tuple
+   - `get_orientation()` → (roll, pitch, yaw) in radians
+   - `get_velocity()` → (vx, vy, vz) tuple
+   - `get_battery()` → voltage float
+   - `get_range_readings()` → dict with all range values
+   - `wait_for_data(timeout)` → blocks until sensor data arrives
+
+5. **User Callback System**
+   - `add_callback(log_type, func)` for custom data handlers
+   - `remove_callback(log_type, func)` to unregister
+   - Log types: 'state_estimate', 'stabilizer', 'battery', 'range'
+
+6. **Error Handling**
+   - Error counting with auto-stop after max errors (10)
+   - Graceful cleanup in `stop_logging()`
+   - Properties: `is_logging`, `has_multiranger`
+
+**Updated `src/hardware/crazyflie_interface.py`:**
+- Stores drone config section for sensor logger: `self._drone_config`
+- Passes proper config to `SensorLogger(self.scf, self._drone_config)`
+- Waits for initial sensor data after setup: `sensor_logger.wait_for_data()`
+- Properly stops logging on disconnect
+
+**New Test File `tests/test_sensor_logger.py`:**
+- 20 unit tests with mocked cflib
+- Test classes:
+  - `TestSensorLoggerInit`: Configuration handling
+  - `TestSensorLoggerData`: Data access methods
+  - `TestSensorLoggerCallbacks`: Internal callback processing
+  - `TestSensorLoggerUserCallbacks`: User-registered callbacks
+  - `TestSensorLoggerThreadSafety`: Concurrent access
+  - `TestSensorLoggerWaitForData`: Blocking wait functionality
+  - `TestMultiRangerDetection`: Deck detection from TOC
+
+### Log Variables
+
+| LogConfig | Variables | Rate | Purpose |
+|-----------|-----------|------|---------|
+| StateEstimate | x, y, z, vx, vy, vz | 20ms | Position/velocity from Flow Deck |
+| Stabilizer | roll, pitch, yaw | 20ms | Orientation (degrees) |
+| Battery | pm.vbat | 500ms | Battery voltage |
+| Range | front, back, left, right, up, zrange | 50ms | Multi-Ranger distances (optional) |
+
+### Rationale
+- Thread-safe sensor cache ensures reliable data access from control loop
+- Callback system allows safety monitor to react immediately to sensor changes
+- Configurable rates match hardware capabilities and reduce CPU load
+- Separate methods for each data type simplify downstream code
+- Multi-Ranger is optional (detected via TOC) since Flow Deck alone provides position
+
+### Impact
+- Phase 3 complete: sensor data pipeline ready for hardware flight
+- CrazyflieInterface can now read all required sensor data
+- Test coverage: 75 tests passing (20 new for sensor logger)
+- Next: Phase 4 (hardware tests) and Phase 5 (flight sequences)
+
+---
+
 ## December 3, 2025 - Scripts Reorganization & Makefile
 
 ### Objective
