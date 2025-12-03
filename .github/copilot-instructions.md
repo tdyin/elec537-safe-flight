@@ -43,27 +43,31 @@ Key dependencies: `onnxruntime`, `opencv`, `open3d`, `cflib`, `loguru`
 ### Running SITL Tests
 Standard workflow for testing navigation:
 ```bash
-# Launch SITL with vision-based navigation (default)
-python launch.py
+# Launch SITL with vision-based navigation (recommended)
+make sim
+
+# Or use the script directly:
+python scripts/launch_sim.py
 
 # Different worlds and options
-python launch.py --world open
-python launch.py --no-gui             # Headless mode (faster)
-python launch.py --goal 6 0 1         # Set goal position
-python launch.py --viz                # Enable visualization
-python launch.py --analyze            # Analyze latest log
+make sim-open                         # Open world
+make sim-headless                     # Headless mode (faster)
+python scripts/launch_sim.py --goal 6 0 1   # Set goal position
+python scripts/launch_sim.py --viz          # Enable visualization
+python scripts/launch_sim.py --analyze      # Analyze latest log
 ```
 
-**Important**: `launch.py` is the canonical entry point for SITL. It handles Webots path detection, world file loading, and coordinated startup.
+**Important**: `Makefile` is the primary entry point. Use `make sim` for SITL simulation.
 
 ### Model Management
-Models live in `models/` and are downloaded via `scripts/download_models.py`:
+Models are downloaded via `scripts/setup.py` (or `make setup`):
 - Depth: MiDaS v2.1 Small (63.7 MB)
 
 Model paths configured in `config/sim.yaml` or `config/hardware.yaml` under `vision.depth`.
 ### Testing
 ```bash
-pytest tests/ -v                    # Full test suite
+make test                           # Full test suite (recommended)
+pytest tests/ -v                    # Direct pytest
 python scripts/test_vision_detector.py  # Vision system only
 python scripts/test_modules.py      # Module verification
 ```

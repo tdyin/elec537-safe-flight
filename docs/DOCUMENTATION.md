@@ -28,31 +28,36 @@ Project Status: ✅ SITL Functional | 🔄 Hardware Deployment In Progress
 conda env create -f environment.yaml
 conda activate safe-flight
 
-# Download models
-python scripts/download_models.py
+# Setup project (download models, verify dependencies)
+make setup
 ```
 
 ### Run SITL Simulation
 ```bash
-# Launch with vision-based navigation
-python launch.py
+# Launch with vision-based navigation (recommended)
+make sim
+
+# Or use the script directly:
+python scripts/launch_sim.py
 
 # With specific goal
-python launch.py --goal 6 0 1
+python scripts/launch_sim.py --goal 6 0 1
 
 # With custom waypoints
-python launch.py --waypoints "[[2,0,1],[4,1,1],[6,0,1]]"
+python scripts/launch_sim.py --waypoints "[[2,0,1],[4,1,1],[6,0,1]]"
 
 # With visualization
-python launch.py --viz
+make sim-viz
 
 # Different worlds
-python launch.py --world open
-python launch.py --no-gui  # Headless mode
+make sim-open
+make sim-headless  # No GUI (faster)
 ```
 
 ### Run Tests
 ```bash
+make test
+# or
 pytest tests/ -v
 ```
 
@@ -203,7 +208,8 @@ The system uses A* path planning with Bezier smoothing:
 | Feature | Simulation | Hardware |
 |---------|------------|----------|
 | Config | `config/sim.yaml` | `config/hardware.yaml` |
-| Launcher | `launch_sim.py` | `launch_hardware.py` |
+| Launcher | `scripts/launch_sim.py` | `scripts/launch_hardware.py` |
+| Make target | `make sim` | `make hardware` |
 | Interface | `WebotsInterface` | `CrazyflieInterface` |
 | Camera | Webots camera | AI Deck WiFi stream |
 | Position | Ground truth | Flow Deck estimation |
@@ -285,14 +291,14 @@ pip install -e .
 
 ### Model Not Found
 ```bash
-python scripts/download_models.py
+make setup-models
 ls -lh models/
 ```
 
 ### Low FPS
 - Increase `vision_interval` in controller
 - Use MobileNetV3 instead of ResNet50
-- Enable headless mode: `python launch.py --no-gui`
+- Enable headless mode: `make sim-headless`
 
 ### Environment Issues
 ```bash
@@ -308,30 +314,38 @@ conda activate safe-flight
 
 ```
 elec537-safe-flight/
+├── Makefile                 # Primary entry point for all commands
 ├── config/                  # Configuration files
 │   ├── sim.yaml            # Simulation config
 │   └── hardware.yaml       # Hardware config
-├── launch_sim.py            # SITL launcher
 ├── environment.yaml         # Conda environment
 ├── models/                  # ONNX models
 ├── src/                     # Main Python code
-│   ├── core/               # Shared library
-│   ├── hardware/           # Hardware interfaces
-│   ├── sim/                # Simulation code
-│   ├── drone/              # Interfaces & controllers
+│   ├── core/               # Shared library (base interface, types, safety)
+│   ├── hardware/           # Hardware interfaces (cflib, AI Deck)
+│   ├── sim/                # Simulation code (bridge, webots_interface)
+│   ├── drone/              # Controllers (depth_controller)
 │   ├── vision/             # Detection & depth
 │   ├── planning/           # Path planning
 │   └── fusion/             # Sensor fusion
+├── scripts/                 # Launch scripts & utilities
+│   ├── launch_sim.py       # SITL launcher
+│   ├── launch_hardware.py  # Hardware launcher
+│   ├── setup.py            # Environment & model setup
+│   └── cleanup.py          # Storage cleanup
 ├── sim/webots/             # Webots simulation
 │   ├── controllers/        # Webots controllers
 │   ├── worlds/             # Environment files
 │   └── logs/               # Flight logs
 ├── tests/                   # Unit tests
-├── docs/                    # Documentation
-│   ├── DOCUMENTATION.md    # This file
-│   ├── DEVELOPMENT_LOG.md  # Development history
-│   └── DEPLOYMENT_PLAN.md  # Hardware deployment plan
-└── scripts/                 # Utilities
+├── data/                    # Generated data
+│   ├── raw/                # Raw flight data
+│   ├── processed/          # Processed data
+│   └── visualization/      # Visualization outputs
+└── docs/                    # Documentation
+    ├── DOCUMENTATION.md    # This file
+    ├── DEVELOPMENT_LOG.md  # Development history
+    └── DEPLOYMENT_PLAN.md  # Hardware deployment plan
 ```
 
 ---

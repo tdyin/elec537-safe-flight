@@ -30,11 +30,15 @@ This document outlines the implementation plan to enable real Crazyflie drone fl
 
 ```
 elec537-safe-flight/
+├── Makefile                  # Primary entry point for all commands
 ├── config/
 │   ├── sim.yaml              # Simulation configuration
 │   └── hardware.yaml         # Hardware configuration
-├── launch_sim.py             # SITL launcher (renamed from launch.py)
-├── launch_hardware.py        # Hardware launcher (NEW)
+├── scripts/
+│   ├── launch_sim.py         # SITL launcher (moved from root)
+│   ├── launch_hardware.py    # Hardware launcher (NEW)
+│   ├── setup.py              # Environment setup & model download
+│   └── cleanup.py            # Storage cleanup utility
 ├── src/
 │   ├── core/                 # Shared library (NEW)
 │   │   ├── __init__.py
@@ -71,7 +75,10 @@ elec537-safe-flight/
 | Webots interface | `drone/webots_interface.py` | `sim/webots_interface.py` | Inherit from ABC |
 | Safety logic | Duplicated | `core/safety.py` | Consolidate |
 | TCP bridge | `sim/bridge.py` | `sim/bridge.py` | No change |
-| Rename launcher | `launch.py` | `launch_sim.py` | Rename only |
+| Move launcher | `launch.py` | `scripts/launch_sim.py` | Move to scripts/ |
+| Setup script | `scripts/download_models.py` | `scripts/setup.py` | Enhanced setup |
+| Cleanup script | `scripts/cleanup.sh` | `scripts/cleanup.py` | Rewrite in Python |
+| Makefile | N/A | `Makefile` | New entry point |
 
 ### 1.3 Abstract Base Interface
 

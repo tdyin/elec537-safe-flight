@@ -6,6 +6,67 @@
 
 ---
 
+## December 3, 2025 - Scripts Reorganization & Makefile
+
+### Objective
+Consolidate all scripts into `scripts/` directory and create Makefile as primary entry point.
+
+### Changes Made
+
+**Script Reorganization:**
+
+1. **Moved `launch_sim.py` to `scripts/`**
+   - Updated all path references to use `PROJECT_ROOT`
+   - Fixed relative imports for models, configs, logs
+
+2. **Rewrote `cleanup.sh` as `cleanup.py`**
+   - Full Python rewrite with same CLI interface
+   - Same functionality: `--all`, `--logs`, `--viz`, `--cache`, `--keep-latest`, `--older-than`, `--dry-run`
+   - Interactive mode when no options specified
+   - Removed bash dependency for cross-platform compatibility
+
+3. **Removed `download_models.py`**
+   - Functionality integrated into new `scripts/setup.py`
+
+4. **Created `scripts/launch_hardware.py`**
+   - Placeholder for hardware flight implementation
+   - Preflight checks for dependencies, battery, AI Deck, models
+   - CLI interface ready for Phase 6-8 implementation
+
+5. **Created `scripts/setup.py`**
+   - Environment verification (Python version, conda, dependencies)
+   - Model download with progress bar
+   - Webots detection
+   - Directory structure creation
+   - `--verify`, `--models`, `--clean` modes
+
+6. **Created `Makefile`**
+   - Primary entry point for all project commands
+   - Categories: Setup, Simulation, Hardware, Analysis, Testing, Cleanup
+   - Key targets:
+     - `make setup` - Full environment setup
+     - `make sim` - Launch SITL simulation
+     - `make hardware` - Launch hardware flight
+     - `make test` - Run tests
+     - `make clean` - Interactive cleanup
+
+**Updated Documentation:**
+- `docs/DOCUMENTATION.md` - Updated Quick Start, commands, project structure
+- `docs/DEPLOYMENT_PLAN.md` - Updated directory structure and refactoring tasks
+
+### Rationale
+- Makefile provides simple, memorable commands (`make sim` vs `python scripts/launch_sim.py`)
+- Python scripts are cross-platform (removed bash dependency)
+- Consolidated setup reduces onboarding friction
+- Clear separation of concerns in scripts/
+
+### Impact
+- New workflow: `make setup` → `make sim` or `make hardware`
+- All bash dependencies removed
+- Cleaner project root (only Makefile and config files)
+
+---
+
 ## December 3, 2025 - Phase 1: Codebase Refactoring Complete
 
 ### Objective
