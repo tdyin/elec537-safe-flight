@@ -1,0 +1,348 @@
+#VRML_SIM R2025a utf8
+
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/robots/bitcraze/crazyflie/protos/Crazyflie.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackground.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/backgrounds/protos/TexturedBackgroundLight.proto"
+EXTERNPROTO "https://raw.githubusercontent.com/cyberbotics/webots/R2025a/projects/objects/floors/protos/Floor.proto"
+
+WorldInfo {
+  info [
+    "Crazyflie drone with vision-based obstacle avoidance"
+    "Navigate through wire-like obstacles in various directions"
+    "Wires: vertical, horizontal, and diagonal orientations"
+  ]
+  title "Crazyflie Wire Obstacles"
+}
+Viewpoint {
+  orientation -0.29974181477604556 0.1678199189748563 0.9391439289427556 2.180105939058576
+  position -0.32847405229196946 -4.900302983860155 4.5424067744237755
+  follow "Crazyflie"
+  followSmoothness 0.2
+}
+TexturedBackground {
+}
+TexturedBackgroundLight {
+}
+Floor {
+  size 10 8
+  tileSize 1 1
+}
+DEF WALL_LEFT Solid {
+  translation 0 -4 1.2
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.8 0.8 0.9
+        transparency 0.3
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 10 0.2 2.4
+      }
+    }
+  ]
+  name "wall_left"
+  boundingObject Box {
+    size 10 0.2 2.4
+  }
+}
+DEF WALL_RIGHT Solid {
+  translation 0 4 1.2
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.8 0.8 0.9
+        transparency 0.3
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 10 0.2 2.4
+      }
+    }
+  ]
+  name "wall_right"
+  boundingObject Box {
+    size 10 0.2 2.4
+  }
+}
+DEF WALL_BACK Solid {
+  translation -5 0 1.2
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.8 0.8 0.9
+        transparency 0.3
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 0.2 8 2.4
+      }
+    }
+  ]
+  name "wall_back"
+  boundingObject Box {
+    size 0.2 8 2.4
+  }
+}
+DEF WALL_FRONT Solid {
+  translation 5 0 1.2
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.8 0.8 0.9
+        transparency 0.3
+        roughness 1
+        metalness 0
+      }
+      geometry Box {
+        size 0.2 8 2.4
+      }
+    }
+  ]
+  name "wall_front"
+  boundingObject Box {
+    size 0.2 8 2.4
+  }
+}
+DEF WIRE_VERTICAL_1 Solid {
+  translation -3 0 1.2
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.2 0.2 0.2
+        roughness 0.3
+        metalness 0.8
+      }
+      geometry Cylinder {
+        height 2.4
+        radius 0.02
+      }
+    }
+  ]
+  name "wire_vertical_1"
+  boundingObject Cylinder {
+    height 2.4
+    radius 0.02
+  }
+}
+DEF WIRE_VERTICAL_2 Solid {
+  translation -1 -1 1.2
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.2 0.2 0.2
+        roughness 0.3
+        metalness 0.8
+      }
+      geometry Cylinder {
+        height 2.4
+        radius 0.02
+      }
+    }
+  ]
+  name "wire_vertical_2"
+  boundingObject Cylinder {
+    height 2.4
+    radius 0.02
+  }
+}
+DEF WIRE_VERTICAL_3 Solid {
+  translation 1 0.5 1.2
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.3 0.1 0.1
+        roughness 0.3
+        metalness 0.8
+      }
+      geometry Cylinder {
+        height 2.4
+        radius 0.025
+      }
+    }
+  ]
+  name "wire_vertical_3"
+  boundingObject Cylinder {
+    height 2.4
+    radius 0.025
+  }
+}
+DEF WIRE_VERTICAL_4 Solid {
+  translation 2.5 -1 1.2
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.2 0.2 0.2
+        roughness 0.3
+        metalness 0.8
+      }
+      geometry Cylinder {
+        height 2.4
+        radius 0.02
+      }
+    }
+  ]
+  name "wire_vertical_4"
+  boundingObject Cylinder {
+    height 2.4
+    radius 0.02
+  }
+}
+DEF WIRE_VERTICAL_5 Solid {
+  translation 3.5 1.5 1.2
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.1 0.1 0.3
+        roughness 0.3
+        metalness 0.8
+      }
+      geometry Cylinder {
+        height 2.4
+        radius 0.02
+      }
+    }
+  ]
+  name "wire_vertical_5"
+  boundingObject Cylinder {
+    height 2.4
+    radius 0.02
+  }
+}
+DEF WIRE_HORIZONTAL_1 Solid {
+  translation 0 0 0.8
+  rotation 1 0 0 1.5708
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.6 0.3 0.1
+        roughness 0.4
+        metalness 0.6
+      }
+      geometry Cylinder {
+        height 3
+        radius 0.015
+      }
+    }
+  ]
+  name "wire_horizontal_1"
+  boundingObject Cylinder {
+    height 3
+    radius 0.015
+  }
+}
+DEF WIRE_HORIZONTAL_2 Solid {
+  translation 2 -0.5 0.82
+  rotation 1 0 0 1.5708
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.6 0.3 0.1
+        roughness 0.4
+        metalness 0.6
+      }
+      geometry Cylinder {
+        height 4
+        radius 0.015
+      }
+    }
+  ]
+  name "wire_horizontal_2"
+  boundingObject Cylinder {
+    height 4
+    radius 0.015
+  }
+}
+DEF WIRE_HORIZONTAL_3 Solid {
+  translation -2.5 0 0.78
+  rotation 1 0 0 1.5708
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.6 0.3 0.1
+        roughness 0.4
+        metalness 0.6
+      }
+      geometry Cylinder {
+        height 4
+        radius 0.015
+      }
+    }
+  ]
+  name "wire_horizontal_3"
+  boundingObject Cylinder {
+    height 4
+    radius 0.015
+  }
+}
+DEF WIRE_DIAGONAL_1 Solid {
+  translation -1.59895 0.289912 0.688935
+  rotation -0.707106781186547 3.8616588050137265e-08 -0.707106781186547 -1.5707953071795862
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.5 0.1 0.5
+        roughness 0.3
+        metalness 0.7
+      }
+      geometry Cylinder {
+        radius 0.018
+      }
+    }
+  ]
+  name "wire_diagonal_1"
+  boundingObject Cylinder {
+    radius 0.018
+  }
+}
+DEF WIRE_DIAGONAL_2 Solid {
+  translation 3 -2.96581e-05 0.87
+  rotation 0.5773502691896258 0.5773502691896258 0.5773502691896258 2.094
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.5 0.1 0.5
+        roughness 0.3
+        metalness 0.7
+      }
+      geometry Cylinder {
+        height 2.5
+        radius 0.018
+      }
+    }
+  ]
+  name "wire_diagonal_2"
+  boundingObject Cylinder {
+    height 2.5
+    radius 0.018
+  }
+}
+DEF WIRE_DIAGONAL_3 Solid {
+  translation 1.1296 -0.85057 0.544367
+  rotation 0.9868838011147882 0.16045896766294498 -0.01769979643298658 2.16618
+  children [
+    Shape {
+      appearance PBRAppearance {
+        baseColor 0.1 0.5 0.5
+        roughness 0.3
+        metalness 0.7
+      }
+      geometry Cylinder {
+        height 1.8
+        radius 0.018
+      }
+    }
+  ]
+  name "wire_diagonal_3"
+  boundingObject Cylinder {
+    height 1.8
+    radius 0.018
+  }
+}
+Crazyflie {
+  translation -4.5 0 0.015
+  controller "crazyflie_sitl"
+}

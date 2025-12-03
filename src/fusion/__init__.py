@@ -1,5 +1,5 @@
 """Sensor fusion module for combining vision and LiDAR data."""
 
-from .fusion import SensorFusion
+from .enhanced_fusion import EnhancedSensorFusion
 
-__all__ = ["SensorFusion"]
+__all__ = ["EnhancedSensorFusion"]

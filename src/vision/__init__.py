@@ -1,6 +1,5 @@
 """Vision-based obstacle detection module."""
 
-from .detector import ObstacleDetector
-from .processor import ImageProcessor
+from .depth_detector import DepthDetector
 
-__all__ = ["ObstacleDetector", "ImageProcessor"]
+__all__ = ["DepthDetector"]
