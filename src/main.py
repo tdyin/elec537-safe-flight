@@ -9,13 +9,13 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 import argparse
-import yaml
 from loguru import logger
 
 from src.vision.depth_detector import DepthDetector
 from src.drone.depth_controller import DepthNavigationController
 from src.drone import CrazyflieInterface
 from src.sim.webots_interface import WebotsInterface
+from src.core.config import load_config, is_hardware_mode, get_nested
 
 # Hardware interface available when cflib installed
 try:
@@ -25,20 +25,13 @@ except ImportError:
     HARDWARE_AVAILABLE = False
 
 
-def load_config(config_path: str) -> dict:
-    """Load configuration from YAML file."""
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    return config
-
-
 def setup_logging(config: dict, mode: str = 'navigation'):
     """Setup logging configuration with unified naming: {timestamp}-{world}-{mode}."""
     import datetime
     import os
     
-    log_level = config.get('logging', {}).get('level', 'INFO')
-    log_dir = config.get('logging', {}).get('log_directory', 'logs')
+    log_level = get_nested(config, 'logging', 'level', default='INFO')
+    log_dir = get_nested(config, 'logging', 'log_directory', default='logs')
     
     Path(log_dir).mkdir(exist_ok=True)
     
@@ -67,22 +60,24 @@ def main():
     
     args = parser.parse_args()
     
-    # Load configuration
+    # Load configuration using centralized config loader
     config = load_config(args.config)
     setup_logging(config, args.mode)
+    
+    # Determine if running in hardware or simulation mode
+    hardware_mode = is_hardware_mode(config) and not args.simulation
     
     # Unified startup banner
     logger.info("="*70)
     logger.info("SAFE FLIGHT - Vision-Based Obstacle Avoidance System")
     logger.info("="*70)
     logger.info(f"Mode:       {args.mode.upper()}")
-    logger.info(f"Simulation: {'YES' if args.simulation else 'NO (Hardware)'}")
+    logger.info(f"Platform:   {'HARDWARE' if hardware_mode else 'SIMULATION'}")
     logger.info(f"Config:     {args.config}")
     import datetime
     logger.info(f"Started:    {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("="*70)
     
-    # Initialize modules
     # Initialize modules
     vision_config = config['vision']
     drone_config = config['drone']

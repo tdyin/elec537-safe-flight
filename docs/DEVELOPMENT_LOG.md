@@ -67,6 +67,81 @@ Consolidate all scripts into `scripts/` directory and create Makefile as primary
 
 ---
 
+## December 3, 2025 - Phase 2: Configuration System Complete
+
+### Objective
+Complete Phase 2 of the hardware deployment plan: centralized configuration system with separate files for simulation and hardware modes.
+
+### Changes Made
+
+**New Configuration Module (`src/core/config.py`):**
+- Centralized config loading with `load_config()`
+- Path utilities: `get_config_path()`, `get_project_root()`
+- Nested access helper: `get_nested(config, 'drone', 'navigation', 'cruise_speed')`
+- Mode detection: `is_hardware_mode()`, `is_simulation_mode()`
+- Validation: `validate_hardware_config()`, `validate_simulation_config()`
+- Default value application for missing config keys
+
+**Updated `src/core/__init__.py`:**
+- Exports all config utilities for easy access
+- Single import: `from src.core import load_config, get_nested`
+
+**Updated `scripts/launch_hardware.py`:**
+- Added `--config` argument (default: `config/hardware.yaml`)
+- Preflight checks now read from config:
+  - Battery thresholds from `drone.safety.battery_min_voltage`
+  - AI Deck settings from `drone.ai_deck.*`
+  - Navigation settings from `drone.navigation.*`
+  - Model path from `vision.depth.model_path`
+- Command line overrides for `--uri`, `--altitude`
+- Shows navigation configuration summary (forward-only mode, speeds, geofence)
+
+**Updated `src/main.py`:**
+- Replaced local `load_config()` with `src.core.config.load_config()`
+- Uses `get_nested()` for safe config access
+- Uses `is_hardware_mode()` for platform detection
+
+**New Tests (`tests/test_config.py`):**
+- 21 tests covering config loading, validation, and utilities
+- All tests passing
+
+### Configuration Structure
+
+**Simulation (`config/sim.yaml`):**
+```yaml
+mode: "simulation"
+vision: { depth: { model_path, use_gpu }, obstacle: { thresholds... } }
+drone: { interface: "webots", simulation: { host, port }, navigation: {...} }
+logging: { level: "INFO", log_directory: "sim/webots/logs" }
+```
+
+**Hardware (`config/hardware.yaml`):**
+```yaml
+mode: "hardware"
+drone:
+  uri: "radio://0/80/2M/E7E7E7E7E7"
+  hardware: { flow_deck_required, ai_deck_required }
+  ai_deck: { ip, port, encoding, frame_rate }
+  safety: { battery_min_voltage, geofence_radius, crash_tilt_threshold }
+  navigation: { forward_only: true, cruise_speed: 0.3, ... }
+  flight: { takeoff_height, takeoff_velocity, land_velocity }
+logging: { level: "DEBUG", log_directory: "logs/hardware" }
+```
+
+### Rationale
+- Centralized config module prevents code duplication
+- `get_nested()` handles missing keys gracefully without try/except blocks
+- Validation functions catch config issues before flight
+- Default values ensure all expected keys exist
+
+### Impact
+- Single source of truth for configuration loading
+- Preflight checks now show actual config values
+- Config validation available for both modes
+- Ready for Phase 3 (cflib logging system) which will use these configs
+
+---
+
 ## December 3, 2025 - Phase 1: Codebase Refactoring Complete
 
 ### Objective

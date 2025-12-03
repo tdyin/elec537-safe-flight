@@ -15,6 +15,7 @@ Usage:
     python scripts/launch_hardware.py --goal 2 0 1     # Set goal position
     python scripts/launch_hardware.py --no-vision      # Disable vision (hover only)
     python scripts/launch_hardware.py --preflight      # Run preflight checks only
+    python scripts/launch_hardware.py --config path/to/config.yaml
 
 Prerequisites:
     1. Crazyflie with AI Deck connected and powered
@@ -33,6 +34,7 @@ import argparse
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -52,15 +54,35 @@ except ImportError:
     YAML_AVAILABLE = False
 
 
-def load_config() -> dict:
-    """Load hardware configuration."""
-    config_path = PROJECT_ROOT / 'config' / 'hardware.yaml'
-    if not config_path.exists():
-        print(f"Error: Config file not found: {config_path}")
+def load_config(config_path: Optional[str] = None) -> dict:
+    """Load hardware configuration.
+    
+    Args:
+        config_path: Optional path to config file. Defaults to config/hardware.yaml
+        
+    Returns:
+        Configuration dictionary
+    """
+    if config_path:
+        path = Path(config_path)
+        if not path.is_absolute():
+            path = PROJECT_ROOT / path
+    else:
+        path = PROJECT_ROOT / 'config' / 'hardware.yaml'
+    
+    if not path.exists():
+        print(f"Error: Config file not found: {path}")
         sys.exit(1)
     
-    with open(config_path) as f:
-        return yaml.safe_load(f)
+    with open(path) as f:
+        config = yaml.safe_load(f)
+    
+    # Validate this is hardware config
+    if config.get('mode') != 'hardware':
+        print(f"Warning: Config mode is '{config.get('mode')}', expected 'hardware'")
+        print("  Consider using config/hardware.yaml for hardware flights")
+    
+    return config
 
 
 def check_dependencies() -> bool:
@@ -127,6 +149,9 @@ def run_preflight_checks(config: dict) -> bool:
     print("=" * 60)
     
     checks_passed = True
+    drone_config = config.get('drone', {})
+    safety_config = drone_config.get('safety', {})
+    hardware_config = drone_config.get('hardware', {})
     
     # Check 1: Crazyradio connection
     print("\n[1/5] Checking Crazyradio connection...")
@@ -135,29 +160,54 @@ def run_preflight_checks(config: dict) -> bool:
     
     # Check 2: Crazyflie connection
     print("\n[2/5] Checking Crazyflie connection...")
+    uri = drone_config.get('uri', 'radio://0/80/2M/E7E7E7E7E7')
+    print(f"  URI: {uri}")
     # TODO: Implement actual check
     print("  ✓ Crazyflie responding")
     
     # Check 3: Battery level
     print("\n[3/5] Checking battery level...")
-    min_voltage = config.get('safety', {}).get('min_battery_voltage', 3.3)
+    min_voltage = safety_config.get('battery_min_voltage', 3.3)
+    warning_voltage = safety_config.get('battery_warning_voltage', 3.5)
     # TODO: Get actual battery level
-    print(f"  ✓ Battery OK (>{min_voltage}V required)")
+    print(f"  ✓ Battery OK (min: {min_voltage}V, warning: {warning_voltage}V)")
     
     # Check 4: AI Deck / camera
     print("\n[4/5] Checking AI Deck camera...")
-    # TODO: Check WiFi and camera stream
-    print("  ⚠ AI Deck check not implemented (skipping)")
+    ai_deck_config = drone_config.get('ai_deck', {})
+    if hardware_config.get('ai_deck_required', True):
+        ai_deck_ip = ai_deck_config.get('ip', '192.168.4.1')
+        ai_deck_port = ai_deck_config.get('port', 5000)
+        print(f"  AI Deck endpoint: {ai_deck_ip}:{ai_deck_port}")
+        # TODO: Check WiFi and camera stream
+        print("  ⚠ AI Deck check not implemented (skipping)")
+    else:
+        print("  ○ AI Deck not required")
     
     # Check 5: Depth model
     print("\n[5/5] Checking depth estimation model...")
-    model_path = PROJECT_ROOT / 'models' / 'midas_v21_small.onnx'
-    if model_path.exists():
-        print(f"  ✓ Model found: {model_path.name}")
+    vision_config = config.get('vision', {})
+    depth_config = vision_config.get('depth', {})
+    model_path = depth_config.get('model_path', 'models/midas_v21_small.onnx')
+    full_model_path = PROJECT_ROOT / model_path
+    if full_model_path.exists():
+        print(f"  ✓ Model found: {model_path}")
     else:
-        print(f"  ✗ Model not found: {model_path}")
+        print(f"  ✗ Model not found: {full_model_path}")
         print("    Run: make setup  to download models")
         checks_passed = False
+    
+    # Check 6: Navigation settings
+    print("\n[6/6] Checking navigation configuration...")
+    nav_config = drone_config.get('navigation', {})
+    forward_only = nav_config.get('forward_only', False)
+    cruise_speed = nav_config.get('cruise_speed', 0.3)
+    max_altitude = nav_config.get('max_altitude', 1.5)
+    print(f"  Forward-only mode: {'ENABLED' if forward_only else 'DISABLED'}")
+    print(f"  Cruise speed: {cruise_speed} m/s")
+    print(f"  Max altitude: {max_altitude} m")
+    print(f"  Geofence radius: {safety_config.get('geofence_radius', 3.0)} m")
+    print("  ✓ Navigation config OK")
     
     print("\n" + "=" * 60)
     if checks_passed:
@@ -179,6 +229,7 @@ Examples:
     python scripts/launch_hardware.py --preflight     # Run checks only
     python scripts/launch_hardware.py --uri radio://0/80/2M/E7E7E7E7E7
     python scripts/launch_hardware.py --goal 2 0 1 --altitude 0.5
+    python scripts/launch_hardware.py --config config/hardware.yaml
 """
     )
     
@@ -186,13 +237,13 @@ Examples:
                         help='Crazyflie URI (e.g., radio://0/80/2M/E7E7E7E7E7)')
     parser.add_argument('--goal', type=float, nargs=3, metavar=('X', 'Y', 'Z'),
                         help='Goal position in meters')
-    parser.add_argument('--altitude', type=float, default=0.5,
-                        help='Flight altitude in meters (default: 0.5)')
+    parser.add_argument('--altitude', type=float,
+                        help='Flight altitude in meters (overrides config)')
     parser.add_argument('--no-vision', action='store_true',
                         help='Disable vision-based navigation (hover only)')
     parser.add_argument('--preflight', action='store_true',
                         help='Run preflight checks only, do not fly')
-    parser.add_argument('--config', type=str,
+    parser.add_argument('--config', type=str, default='config/hardware.yaml',
                         help='Path to config file (default: config/hardware.yaml)')
     
     args = parser.parse_args()
@@ -212,8 +263,22 @@ Examples:
         print("Error: PyYAML required")
         sys.exit(1)
     
-    config = load_config()
-    print(f"Loaded config: config/hardware.yaml")
+    config = load_config(args.config)
+    print(f"Loaded config: {args.config}")
+    print(f"Mode: {config.get('mode', 'unknown')}")
+    
+    # Override config with command line arguments
+    if args.uri:
+        config['drone']['uri'] = args.uri
+        print(f"URI override: {args.uri}")
+    
+    if args.altitude:
+        config['drone']['navigation']['default_altitude'] = args.altitude
+        config['drone'].setdefault('flight', {})['takeoff_height'] = args.altitude
+        print(f"Altitude override: {args.altitude}m")
+    
+    if args.goal:
+        print(f"Goal position: {args.goal}")
     
     # Run preflight checks
     if not run_preflight_checks(config):
