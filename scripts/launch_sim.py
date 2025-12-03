@@ -76,7 +76,11 @@ def run_visualization_analysis(log_path: Path, show: bool = True):
         if result.returncode == 0:
             print(f"✓ Visualizations saved to: {output_dir}")
         else:
-            print(f"Warning: Visualization failed: {result.stderr}")
+            # Show stderr if available, otherwise show stdout for debugging
+            error_msg = result.stderr.strip() or result.stdout.strip() or "Unknown error"
+            print(f"Warning: Visualization failed (exit code {result.returncode}): {error_msg}")
+    except subprocess.TimeoutExpired:
+        print("Warning: Visualization timed out")
     except Exception as e:
         print(f"Warning: Visualization error: {e}")
 

@@ -5,8 +5,9 @@
 
 .PHONY: help setup sim hardware clean test analyze viz status
 
-# Default Python interpreter
-PYTHON := python3
+# Python interpreter - prefer conda environment if available
+CONDA_PYTHON := $(shell command -v conda >/dev/null 2>&1 && conda run -n safe-flight which python 2>/dev/null)
+PYTHON := $(if $(CONDA_PYTHON),conda run --no-capture-output -n safe-flight python,python3)
 
 # Project directories
 SCRIPTS_DIR := scripts
@@ -81,7 +82,7 @@ sim:
 
 sim-open:
 	@echo "$(BLUE)Launching SITL with open world...$(NC)"
-	$(PYTHON) $(SCRIPTS_DIR)/launch_sim.py --world open
+	$(PYTHON) $(SCRIPTS_DIR)/launch_sim.py --world open --viz
 
 sim-headless:
 	@echo "$(BLUE)Launching SITL in headless mode...$(NC)"
