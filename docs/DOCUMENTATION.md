@@ -2,8 +2,8 @@
 
 **Vision-Based Obstacle Avoidance for Crazyflie Drone**
 
-Last Updated: December 2, 2025  
-Project Status: ✅ Fully Functional with Depth-Based Navigation
+Last Updated: December 3, 2025  
+Project Status: ✅ SITL Functional | 🔄 Hardware Deployment In Progress
 
 ---
 
@@ -14,8 +14,9 @@ Project Status: ✅ Fully Functional with Depth-Based Navigation
 3. [Navigation System](#navigation-system)
 4. [Vision System](#vision-system)
 5. [SITL Development](#sitl-development)
-6. [Configuration](#configuration)
-7. [Troubleshooting](#troubleshooting)
+6. [Hardware Deployment](#hardware-deployment)
+7. [Configuration](#configuration)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -184,6 +185,39 @@ The system uses A* path planning with Bezier smoothing:
 
 ---
 
+## Hardware Deployment
+
+> **Note:** Hardware flight support is under development. See `docs/DEPLOYMENT_PLAN.md` for full details.
+
+### Target Hardware
+
+| Component | Model | Purpose |
+|-----------|-------|---------|
+| Drone | Crazyflie 2.1 | Flight platform |
+| Positioning | Flow Deck v2 | Relative position estimation |
+| Camera | AI Deck | Vision input for depth estimation |
+| Radio | Crazyradio PA | Communication link |
+
+### Hardware vs Simulation
+
+| Feature | Simulation | Hardware |
+|---------|------------|----------|
+| Config | `config/sim.yaml` | `config/hardware.yaml` |
+| Launcher | `launch_sim.py` | `launch_hardware.py` |
+| Interface | `WebotsInterface` | `CrazyflieInterface` |
+| Camera | Webots camera | AI Deck WiFi stream |
+| Position | Ground truth | Flow Deck estimation |
+| Control | Velocity commands | MotionCommander |
+
+### Hardware Safety Features
+
+- Battery monitoring (auto-land at 3.3V)
+- Geofence (3m radius from start)
+- Tilt limit (40° emergency stop)
+- Communication timeout handling
+
+---
+
 ## Configuration
 
 All parameters are in `config.yaml`. Key sections:
@@ -270,20 +304,30 @@ conda activate safe-flight
 
 ```
 elec537-safe-flight/
-├── config.yaml              # All configuration
+├── config/                  # Configuration files
+│   ├── sim.yaml            # Simulation config (planned)
+│   └── hardware.yaml       # Hardware config (planned)
+├── config.yaml              # Current unified config
 ├── launch.py                # SITL launcher
 ├── environment.yaml         # Conda environment
 ├── models/                  # ONNX models
 ├── src/                     # Main Python code
+│   ├── core/               # Shared library (planned)
+│   ├── hardware/           # Hardware interfaces (planned)
+│   ├── sim/                # Simulation code
 │   ├── drone/              # Interfaces & controllers
 │   ├── vision/             # Detection & depth
 │   ├── planning/           # Path planning
 │   └── fusion/             # Sensor fusion
-├── sim/webots/             # Simulation
+├── sim/webots/             # Webots simulation
 │   ├── controllers/        # Webots controllers
 │   ├── worlds/             # Environment files
 │   └── logs/               # Flight logs
 ├── tests/                   # Unit tests
+├── docs/                    # Documentation
+│   ├── DOCUMENTATION.md    # This file
+│   ├── DEVELOPMENT_LOG.md  # Development history
+│   └── DEPLOYMENT_PLAN.md  # Hardware deployment plan
 └── scripts/                 # Utilities
 ```
 
@@ -293,6 +337,8 @@ elec537-safe-flight/
 
 - **Webots**: https://cyberbotics.com/doc/guide/index
 - **Crazyflie**: https://www.bitcraze.io/documentation/
+- **cflib**: https://www.bitcraze.io/documentation/repository/crazyflie-lib-python/master/
+- **AI Deck**: https://www.bitcraze.io/documentation/repository/AIdeck_examples/master/
 - **MiDaS**: https://github.com/isl-org/MiDaS
 - **ONNX Runtime**: https://onnxruntime.ai/docs/
 

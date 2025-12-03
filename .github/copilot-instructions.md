@@ -136,7 +136,19 @@ MiDaS outputs **inverse depth** (disparity):
 3. **Conda vs system Python**: Always activate `safe-flight` environment - system Python lacks ONNX
 4. **Webots socket binding**: If port 10020 in use, kill old Webots processes: `pkill -f webots`
 
+## Documentation Requirements
+
+⚠️ **IMPORTANT**: Always update `docs/DEVELOPMENT_LOG.md` when making essential changes:
+- New features or modules added
+- Architecture changes or refactoring
+- Bug fixes with root cause analysis
+- Configuration changes
+- Removed or deprecated code
+
+Log format: Date header, objective, changes made, rationale, impact.
+
 ## Reference Files
 - Main documentation: `docs/DOCUMENTATION.md` (comprehensive guide)
 - Development history: `docs/DEVELOPMENT_LOG.md` (chronological decisions)
+- Hardware deployment: `docs/DEPLOYMENT_PLAN.md` (real drone flight plan)
 - Project structure: README.md lines 60-100

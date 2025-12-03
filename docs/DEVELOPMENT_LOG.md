@@ -2,7 +2,52 @@
 
 **Project:** Safe Flight - Vision-Based Obstacle Avoidance  
 **Repository:** tdyin/elec537-safe-flight  
-**Branch:** setup/sim-dev
+**Branch:** feat/sim
+
+---
+
+## December 3, 2025 - Hardware Deployment Planning
+
+### Objective
+Create comprehensive plan to transition from SITL-only system to unified codebase supporting both simulation and real Crazyflie hardware.
+
+### Analysis Completed
+
+**Current Hardware Interface Gaps Identified:**
+- `CrazyflieInterface.get_sensor_data()` - Stub returning empty dict
+- `CrazyflieInterface.get_position()` - Returns `(0,0,0)` always
+- No cflib logging (LogConfig) integration
+- No AI Deck camera streaming
+- No takeoff/land sequences
+- No battery/safety monitoring
+
+### Plan Created: `docs/DEPLOYMENT_PLAN.md`
+
+**8-Phase Implementation:**
+1. Refactor codebase (shared core, separate sim/hardware)
+2. Split configuration (sim.yaml, hardware.yaml)
+3. Implement cflib logging system
+4. Create hardware test framework
+5. Add flight sequences (takeoff/land via MotionCommander)
+6. Implement safety state machine
+7. Create AI Deck camera module
+8. Add simulation equivalence features
+
+**Design Decisions:**
+- Offboard vision processing (laptop runs MiDaS)
+- Flow Deck for relative positioning
+- MotionCommander for motion control
+- Forward-only mode for initial testing
+
+### Documentation Updated
+- `docs/DOCUMENTATION.md` - Added Hardware Deployment section
+- `.github/copilot-instructions.md` - Added DEVELOPMENT_LOG reminder
+
+### Impact
+- Clear roadmap for hardware enablement
+- Estimated 12-day implementation timeline
+- Risk mitigation strategies defined
+- Testing checklist created
 
 ---
 
