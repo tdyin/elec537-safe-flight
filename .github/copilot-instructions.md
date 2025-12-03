@@ -149,6 +149,10 @@ MiDaS outputs **inverse depth** (disparity):
 
 Log format: Date header, objective, changes made, rationale, impact.
 
+⚠️ **ALSO CHECK**: After making changes, review `docs/DOCUMENTATION.md` and `README.md`:
+- Only update when you find missing or inaccurate information
+- Do not rewrite sections unnecessarily
+
 ## Reference Files
 - Main documentation: `docs/DOCUMENTATION.md` (comprehensive guide)
 - Development history: `docs/DEVELOPMENT_LOG.md` (chronological decisions)
