@@ -82,3 +82,6 @@ htmlcov/
 tmp/
 temp/
 *.tmp
+
+# Crazyflie cflib cache
+cache/
