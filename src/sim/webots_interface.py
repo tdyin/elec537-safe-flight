@@ -10,7 +10,7 @@ from loguru import logger
 
 from ..core.base_interface import DroneInterface
 from ..core.types import SensorData, Position
-from ..core.safety import SafetyMonitor, SafetyState
+from ..core.safety import SafetyMonitor, SafetyState, SafetyTrigger, EmergencyResponse
 from .bridge import SimulationBridge
 
 
@@ -229,6 +229,37 @@ class WebotsInterface(DroneInterface):
         self.crashed = True
         logger.warning("[WEBOTS] ⚠ EMERGENCY STOP - All motors stopped")
     
+    def emergency_land(self) -> None:
+        """Emergency land - controlled descent to ground.
+        
+        Used for battery low or communication loss situations where
+        a controlled landing is still possible.
+        """
+        if not self._is_connected:
+            return
+        
+        logger.warning("[WEBOTS] ⚠ EMERGENCY LAND - Initiating controlled descent")
+        
+        # In simulation, send a downward velocity to descend
+        # The control loop should detect landing via altitude
+        self.bridge.send_velocity_command(0.0, 0.0, -0.2, 0.0)
+        self._is_flying = False
+        self.safety.set_landing()
+    
+    def emergency_hover(self) -> None:
+        """Emergency hover - stop and hold position.
+        
+        Used for geofence breaches where we want to stop movement
+        but maintain altitude.
+        """
+        if not self._is_connected:
+            return
+        
+        logger.warning("[WEBOTS] ⚠ EMERGENCY HOVER - Stopping movement")
+        
+        # Zero velocities but don't mark as crashed (can resume)
+        self.bridge.send_velocity_command(0.0, 0.0, 0.0, 0.0)
+    
     def check_crash(self) -> bool:
         """Check if drone has crashed using the safety monitor.
         
@@ -274,9 +305,22 @@ class WebotsInterface(DroneInterface):
         self.safety.reset()
         logger.info("[SAFETY] Crash state reset - Ready for flight")
     
-    def _on_emergency(self, trigger, message: str) -> None:
-        """Handle emergency callback from safety monitor."""
-        self.emergency_stop()
+    def _on_emergency(self, trigger: SafetyTrigger, message: str) -> None:
+        """Handle emergency callback from safety monitor.
+        
+        Selects appropriate response based on the trigger type:
+        - LOW_BATTERY, COMMUNICATION_LOSS: Controlled landing
+        - GEOFENCE_BREACH: Stop and hover
+        - EXCESSIVE_TILT, LOW_ALTITUDE, MANUAL_STOP: Motor cutoff
+        """
+        response = self.safety.recommended_response
+        
+        if response == EmergencyResponse.LAND:
+            self.emergency_land()
+        elif response == EmergencyResponse.HOVER:
+            self.emergency_hover()
+        else:  # CUTOFF (default)
+            self.emergency_stop()
     
     def __enter__(self):
         """Context manager entry."""

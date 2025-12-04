@@ -109,6 +109,11 @@ hardware:
 	@echo "$(YELLOW)⚠️  Ensure safety precautions are in place!$(NC)"
 	$(PYTHON) $(SCRIPTS_DIR)/launch_hardware.py
 
+hardware-hover:
+	@echo "$(BLUE)Launching hover test (no vision)...$(NC)"
+	@echo "$(YELLOW)⚠️  Ensure safety precautions are in place!$(NC)"
+	$(PYTHON) $(SCRIPTS_DIR)/launch_hardware.py --hover --duration 10
+
 preflight:
 	@echo "$(BLUE)Running preflight checks...$(NC)"
 	$(PYTHON) $(SCRIPTS_DIR)/launch_hardware.py --preflight

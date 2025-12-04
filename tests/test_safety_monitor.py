@@ -8,7 +8,7 @@ import pytest
 import numpy as np
 from unittest.mock import Mock, MagicMock
 
-from src.core.safety import SafetyMonitor, SafetyTrigger
+from src.core.safety import SafetyMonitor, SafetyTrigger, EmergencyResponse, EMERGENCY_RESPONSES
 from src.core.types import SafetyState, SensorData, Position, Orientation, Velocity
 
 
@@ -471,3 +471,108 @@ class TestStartPosition:
         
         state = safety_monitor.check(far_from_start_data)
         assert state == SafetyState.EMERGENCY
+
+
+class TestEmergencyResponses:
+    """Tests for differentiated emergency responses."""
+    
+    def test_emergency_response_enum(self):
+        """Test EmergencyResponse enum values."""
+        assert EmergencyResponse.LAND is not None
+        assert EmergencyResponse.HOVER is not None
+        assert EmergencyResponse.CUTOFF is not None
+    
+    def test_response_mapping_for_low_battery(self):
+        """Test low battery triggers LAND response."""
+        assert EMERGENCY_RESPONSES[SafetyTrigger.LOW_BATTERY] == EmergencyResponse.LAND
+    
+    def test_response_mapping_for_geofence(self):
+        """Test geofence breach triggers HOVER response."""
+        assert EMERGENCY_RESPONSES[SafetyTrigger.GEOFENCE_BREACH] == EmergencyResponse.HOVER
+    
+    def test_response_mapping_for_tilt(self):
+        """Test excessive tilt triggers CUTOFF response."""
+        assert EMERGENCY_RESPONSES[SafetyTrigger.EXCESSIVE_TILT] == EmergencyResponse.CUTOFF
+    
+    def test_response_mapping_for_low_altitude(self):
+        """Test low altitude triggers CUTOFF response."""
+        assert EMERGENCY_RESPONSES[SafetyTrigger.LOW_ALTITUDE] == EmergencyResponse.CUTOFF
+    
+    def test_response_mapping_for_comm_loss(self):
+        """Test communication loss triggers LAND response."""
+        assert EMERGENCY_RESPONSES[SafetyTrigger.COMMUNICATION_LOSS] == EmergencyResponse.LAND
+    
+    def test_response_mapping_for_manual_stop(self):
+        """Test manual stop triggers CUTOFF response."""
+        assert EMERGENCY_RESPONSES[SafetyTrigger.MANUAL_STOP] == EmergencyResponse.CUTOFF
+    
+    def test_recommended_response_default(self, safety_monitor):
+        """Test recommended_response defaults to CUTOFF for no trigger."""
+        assert safety_monitor.recommended_response == EmergencyResponse.CUTOFF
+    
+    def test_recommended_response_for_low_battery(self, safety_monitor):
+        """Test recommended_response returns LAND for low battery."""
+        safety_monitor.set_ready()
+        safety_monitor.arm()
+        safety_monitor.set_flying()
+        safety_monitor.takeoff_complete = True
+        safety_monitor.crash_detection_enabled = True
+        
+        low_battery_data = SensorData(
+            position=Position(0, 0, 0.5),
+            orientation=Orientation(0, 0, 0),
+            velocity=Velocity(0.1, 0, 0),
+            altitude=0.5,
+            battery=3.0,  # Below 3.3V threshold
+            timestamp=100.0,
+        )
+        
+        safety_monitor.check(low_battery_data)
+        
+        assert safety_monitor.last_trigger == SafetyTrigger.LOW_BATTERY
+        assert safety_monitor.recommended_response == EmergencyResponse.LAND
+    
+    def test_recommended_response_for_geofence(self, safety_monitor):
+        """Test recommended_response returns HOVER for geofence breach."""
+        safety_monitor.set_ready()
+        safety_monitor.arm()
+        safety_monitor.set_flying()
+        safety_monitor.set_start_position(Position(0, 0, 0))
+        safety_monitor.takeoff_complete = True
+        safety_monitor.crash_detection_enabled = True
+        
+        geofence_breach_data = SensorData(
+            position=Position(5.0, 0, 0.5),  # > 3.0m geofence
+            orientation=Orientation(0, 0, 0),
+            velocity=Velocity(0.1, 0, 0),
+            altitude=0.5,
+            battery=3.9,
+            timestamp=100.0,
+        )
+        
+        safety_monitor.check(geofence_breach_data)
+        
+        assert safety_monitor.last_trigger == SafetyTrigger.GEOFENCE_BREACH
+        assert safety_monitor.recommended_response == EmergencyResponse.HOVER
+    
+    def test_recommended_response_for_tilt(self, safety_monitor):
+        """Test recommended_response returns CUTOFF for excessive tilt."""
+        safety_monitor.set_ready()
+        safety_monitor.arm()
+        safety_monitor.set_flying()
+        safety_monitor.takeoff_complete = True
+        safety_monitor.crash_detection_enabled = True
+        
+        tilted_data = SensorData(
+            position=Position(0, 0, 0.5),
+            orientation=Orientation(roll=np.deg2rad(50), pitch=0, yaw=0),  # > 40°
+            velocity=Velocity(0, 0, 0),
+            altitude=0.5,
+            battery=3.9,
+            timestamp=100.0,
+        )
+        
+        safety_monitor.check(tilted_data)
+        
+        assert safety_monitor.last_trigger == SafetyTrigger.EXCESSIVE_TILT
+        assert safety_monitor.recommended_response == EmergencyResponse.CUTOFF

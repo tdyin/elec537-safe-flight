@@ -12,7 +12,7 @@ import numpy as np
 
 from ..core.base_interface import DroneInterface
 from ..core.types import SensorData, Position
-from ..core.safety import SafetyMonitor, SafetyState
+from ..core.safety import SafetyMonitor, SafetyState, SafetyTrigger, EmergencyResponse
 
 # Try to import cflib
 try:
@@ -295,6 +295,49 @@ class CrazyflieHardwareInterface(DroneInterface):
         
         logger.warning("[HARDWARE] ⚠ EMERGENCY STOP - Motors cut")
     
+    def emergency_land(self) -> None:
+        """Emergency land - controlled descent to ground.
+        
+        Used for battery low or communication loss situations where
+        a controlled landing is still possible.
+        """
+        if not self._is_connected:
+            return
+        
+        logger.warning("[HARDWARE] ⚠ EMERGENCY LAND - Initiating controlled descent")
+        
+        # Use MotionCommander land if available
+        if self.mc:
+            try:
+                self.mc.land()
+                self.mc = None
+                logger.info("[HARDWARE] Emergency landing complete")
+            except Exception as e:
+                logger.error(f"[HARDWARE] Emergency land failed, cutting motors: {e}")
+                self.emergency_stop()
+        else:
+            # Fallback: cut motors
+            self.emergency_stop()
+    
+    def emergency_hover(self) -> None:
+        """Emergency hover - stop and hold position.
+        
+        Used for geofence breaches where we want to stop movement
+        but maintain altitude.
+        """
+        if not self._is_connected:
+            return
+        
+        logger.warning("[HARDWARE] ⚠ EMERGENCY HOVER - Stopping movement")
+        
+        if self.mc:
+            try:
+                # Stop linear motion (hover in place)
+                self.mc.start_linear_motion(0.0, 0.0, 0.0, 0.0)
+            except Exception as e:
+                logger.error(f"[HARDWARE] Emergency hover failed: {e}")
+                self.emergency_stop()
+    
     def _check_decks(self) -> bool:
         """Check for required decks.
         
@@ -319,9 +362,22 @@ class CrazyflieHardwareInterface(DroneInterface):
         
         return True
     
-    def _on_emergency(self, trigger, message: str) -> None:
-        """Handle emergency callback from safety monitor."""
-        self.emergency_stop()
+    def _on_emergency(self, trigger: SafetyTrigger, message: str) -> None:
+        """Handle emergency callback from safety monitor.
+        
+        Selects appropriate response based on the trigger type:
+        - LOW_BATTERY, COMMUNICATION_LOSS: Controlled landing
+        - GEOFENCE_BREACH: Stop and hover
+        - EXCESSIVE_TILT, LOW_ALTITUDE, MANUAL_STOP: Motor cutoff
+        """
+        response = self.safety.recommended_response
+        
+        if response == EmergencyResponse.LAND:
+            self.emergency_land()
+        elif response == EmergencyResponse.HOVER:
+            self.emergency_hover()
+        else:  # CUTOFF (default)
+            self.emergency_stop()
     
     def __enter__(self):
         """Context manager entry."""

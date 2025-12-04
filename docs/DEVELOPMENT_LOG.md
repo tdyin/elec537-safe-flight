@@ -6,6 +6,94 @@
 
 ---
 
+## December 3, 2025 - Phase 6: Safety State Machine Complete
+
+### Objective
+Complete Phase 6 of the hardware deployment plan: implement differentiated emergency responses based on trigger type.
+
+### Changes Made
+
+**Enhanced `src/core/safety.py`:**
+
+1. **New EmergencyResponse Enum**
+   - `LAND`: Controlled descent to ground (for battery low, communication loss)
+   - `HOVER`: Stop and hold position (for geofence breach)
+   - `CUTOFF`: Immediate motor stop (for tilt, crash, manual stop)
+
+2. **Emergency Response Mapping (EMERGENCY_RESPONSES)**
+   - `LOW_BATTERY` → `LAND`: Land to conserve remaining battery
+   - `GEOFENCE_BREACH` → `HOVER`: Stop movement but maintain altitude
+   - `EXCESSIVE_TILT` → `CUTOFF`: Motor cutoff (likely crashed)
+   - `LOW_ALTITUDE` → `CUTOFF`: Motor cutoff (on ground)
+   - `COMMUNICATION_LOSS` → `LAND`: Controlled landing for safety
+   - `MANUAL_STOP` → `CUTOFF`: Immediate stop per user request
+   - `STOPPED_LOW` → `CUTOFF`: Already on ground
+
+3. **New `recommended_response` Property**
+   - Returns appropriate `EmergencyResponse` based on `last_trigger`
+   - Defaults to `CUTOFF` for unknown triggers
+
+**Enhanced `src/hardware/crazyflie_interface.py`:**
+
+1. **New `emergency_land()` Method**
+   - Uses MotionCommander to perform controlled descent
+   - Falls back to `emergency_stop()` if landing fails
+
+2. **New `emergency_hover()` Method**
+   - Sends zero velocities to hold position
+   - Maintains altitude, can potentially recover
+
+3. **Updated `_on_emergency()` Callback**
+   - Now selects response based on `safety.recommended_response`
+   - Routes to appropriate handler: `emergency_land()`, `emergency_hover()`, or `emergency_stop()`
+
+**Enhanced `src/sim/webots_interface.py`:**
+
+1. **New `emergency_land()` Method**
+   - Sends downward velocity for controlled descent
+   - Sets state to LANDING
+
+2. **New `emergency_hover()` Method**
+   - Zeros velocities without marking as crashed
+   - Allows potential recovery
+
+3. **Updated `_on_emergency()` Callback**
+   - Mirrors hardware interface behavior
+   - Uses same response selection logic
+
+**Updated `tests/test_safety_monitor.py` (11 new tests):**
+
+- `TestEmergencyResponses` class with:
+  - Response enum verification
+  - Mapping tests for all trigger types
+  - `recommended_response` property tests
+  - Integration tests with actual safety checks
+
+### Test Summary
+
+| Test File | Tests | New Tests |
+|-----------|-------|-----------|
+| test_safety_monitor.py | 37 | +11 |
+
+### Emergency Response Summary
+
+| Trigger | Response | Rationale |
+|---------|----------|-----------|
+| Low battery | Land | Save remaining power |
+| Geofence breach | Hover | Stop, maintain altitude |
+| Excessive tilt | Cutoff | Likely crashed |
+| Low altitude | Cutoff | Already on ground |
+| Comm loss | Land | Controlled landing |
+| Manual stop | Cutoff | Immediate per user |
+
+### Impact
+- Safety system now provides nuanced responses instead of always cutting motors
+- Geofence breach allows recovery (hover then can be commanded back)
+- Low battery gets controlled landing instead of crash
+- Both hardware and simulation interfaces handle emergencies identically
+
+---
+
 ## December 3, 2025 - Phase 4: Hardware Tests Complete
 
 ### Objective

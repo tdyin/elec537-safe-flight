@@ -24,6 +24,25 @@ class SafetyTrigger(Enum):
     STOPPED_LOW = auto()
 
 
+class EmergencyResponse(Enum):
+    """Response actions for emergency situations."""
+    LAND = auto()       # Controlled descent to ground
+    HOVER = auto()      # Stop and hold position
+    CUTOFF = auto()     # Immediate motor stop (most severe)
+
+
+# Mapping of triggers to appropriate responses
+EMERGENCY_RESPONSES = {
+    SafetyTrigger.LOW_BATTERY: EmergencyResponse.LAND,          # Land to save battery
+    SafetyTrigger.GEOFENCE_BREACH: EmergencyResponse.HOVER,     # Stop and hold position
+    SafetyTrigger.EXCESSIVE_TILT: EmergencyResponse.CUTOFF,     # Motor cutoff (likely crashed)
+    SafetyTrigger.LOW_ALTITUDE: EmergencyResponse.CUTOFF,       # Motor cutoff (on ground)
+    SafetyTrigger.COMMUNICATION_LOSS: EmergencyResponse.LAND,   # Hover briefly then land
+    SafetyTrigger.MANUAL_STOP: EmergencyResponse.CUTOFF,        # Immediate stop per user request
+    SafetyTrigger.STOPPED_LOW: EmergencyResponse.CUTOFF,        # Already on ground
+}
+
+
 class SafetyMonitor:
     """Monitors drone state and triggers safety responses.
     
@@ -273,3 +292,12 @@ class SafetyMonitor:
     def can_fly(self) -> bool:
         """Check if state allows flight commands."""
         return self.state in [SafetyState.FLYING, SafetyState.ARMED]
+    
+    @property
+    def recommended_response(self) -> EmergencyResponse:
+        """Get the recommended emergency response for the current trigger.
+        
+        Returns:
+            EmergencyResponse enum indicating how to handle the emergency
+        """
+        return EMERGENCY_RESPONSES.get(self.last_trigger, EmergencyResponse.CUTOFF)

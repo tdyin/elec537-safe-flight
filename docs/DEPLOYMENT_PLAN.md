@@ -3,7 +3,7 @@
 **Project:** Safe Flight - Vision-Based Obstacle Avoidance  
 **Target:** Crazyflie 2.1 with Flow Deck + AI Deck  
 **Created:** December 3, 2025  
-**Status:** ✅ Phase 1-5 Complete | 🔄 Phase 6 Next
+**Status:** ✅ Phase 1-6 Complete | 🔄 Phase 8 Next
 
 ---
 
@@ -569,9 +569,9 @@ def land(self) -> bool:
 | 3. Logging System | 2 days | Phase 1, 2 | ✅ Complete | SensorLogger class |
 | 4. Hardware Tests | 1 day | Phase 1-3 | ✅ Complete | Test framework |
 | 5. Flight Sequence | 2 days | Phase 3, 4 | ✅ Complete | Takeoff/land/hover/vision |
-| 6. Safety Machine | 1 day | Phase 3, 5 | 🔄 Next | SafetyMonitor |
+| 6. Safety Machine | 1 day | Phase 3, 5 | ✅ Complete | SafetyMonitor |
 | 7. AI Deck Camera | 2 days | Phase 1 | ✅ Complete | AIdeckCamera |
-| 8. Sim Equivalence | 1 day | Phase 5-7 | ⏳ Pending | Updated sim |
+| 8. Sim Equivalence | 1 day | Phase 5-7 | 🔄 Next | Updated sim |
 
 **Total Estimated Time:** 12 days
 
