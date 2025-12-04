@@ -47,8 +47,11 @@ help:
 	@echo "  make status       - Show storage status"
 	@echo ""
 	@echo "$(GREEN)Testing:$(NC)"
-	@echo "  make test         - Run all tests"
-	@echo "  make test-quick   - Run tests without slow markers"
+	@echo "  make test              - Run all tests"
+	@echo "  make test-quick        - Run tests without hardware/slow markers"
+	@echo "  make test-hardware     - Run hardware tests (requires drone)"
+	@echo "  make test-hardware-quick - Hardware tests without flight"
+	@echo "  make test-coverage     - Run tests with coverage report"
 	@echo ""
 	@echo "$(GREEN)Cleanup:$(NC)"
 	@echo "  make clean        - Interactive cleanup"
@@ -137,15 +140,24 @@ status:
 
 test:
 	@echo "$(BLUE)Running all tests...$(NC)"
-	pytest tests/ -v
+	$(PYTHON) -m pytest tests/ -v
 
 test-quick:
-	@echo "$(BLUE)Running quick tests...$(NC)"
-	pytest tests/ -v -m "not slow"
+	@echo "$(BLUE)Running quick tests (no hardware, no slow)...$(NC)"
+	$(PYTHON) -m pytest tests/ -v -m "not slow and not hardware"
+
+test-hardware:
+	@echo "$(BLUE)Running hardware tests...$(NC)"
+	@echo "$(YELLOW)⚠️  Requires Crazyflie and Crazyradio connected!$(NC)"
+	$(PYTHON) -m pytest tests/test_hardware_integration.py -v --hardware
+
+test-hardware-quick:
+	@echo "$(BLUE)Running quick hardware tests (no flight)...$(NC)"
+	$(PYTHON) -m pytest tests/test_hardware_integration.py -v --hardware -m "not slow"
 
 test-coverage:
 	@echo "$(BLUE)Running tests with coverage...$(NC)"
-	pytest tests/ -v --cov=src --cov-report=html
+	$(PYTHON) -m pytest tests/ -v --cov=src --cov-report=html
 
 #------------------------------------------------------------------------------
 # Cleanup

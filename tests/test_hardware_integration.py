@@ -64,27 +64,33 @@ class TestCrazyflieConnection:
         """Test connecting to Crazyflie."""
         cf = Crazyflie(rw_cache='./cache')
         connected = False
+        connection_failed = False
+        failure_msg = ""
         
         def connected_callback(link_uri):
             nonlocal connected
             connected = True
         
         def failed_callback(link_uri, msg):
-            pytest.fail(f"Connection failed: {msg}")
+            nonlocal connection_failed, failure_msg
+            connection_failed = True
+            failure_msg = msg
         
         cf.connected.add_callback(connected_callback)
         cf.connection_failed.add_callback(failed_callback)
         
         cf.open_link(crazyflie_uri)
         
-        # Wait for connection (timeout after 5 seconds)
+        # Wait for connection or failure (timeout after 5 seconds)
         timeout = 5.0
         start = time.time()
-        while not connected and time.time() - start < timeout:
+        while not connected and not connection_failed and time.time() - start < timeout:
             time.sleep(0.1)
         
         cf.close_link()
         
+        if connection_failed:
+            pytest.fail(f"Connection failed: {failure_msg}")
         assert connected, f"Failed to connect to {crazyflie_uri} within {timeout}s"
     
     @pytest.mark.skipif(not CFLIB_AVAILABLE, reason="cflib not installed")
