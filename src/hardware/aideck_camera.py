@@ -159,7 +159,7 @@ class AIdeckCamera:
         
         logger.debug("[AIDECK] Receiver thread started")
         consecutive_errors = 0
-        max_consecutive_errors = 5
+        max_consecutive_errors = 10
         
         while self.running and self.connected:
             try:
@@ -175,14 +175,17 @@ class AIdeckCamera:
                         logger.info(f"[AIDECK] First frame received: {self._width}x{self._height}")
                 else:
                     consecutive_errors += 1
+                    if consecutive_errors == 1:
+                        logger.debug("[AIDECK] No frame received, waiting...")
                     if consecutive_errors >= max_consecutive_errors:
                         # Try to resync by reconnecting
-                        logger.warning("[AIDECK] Too many errors, attempting resync...")
+                        logger.warning(f"[AIDECK] {consecutive_errors} consecutive errors, attempting resync...")
                         self._resync_stream()
                         consecutive_errors = 0
                     
             except socket.timeout:
                 logger.debug("[AIDECK] Socket timeout in receive loop")
+                consecutive_errors += 1
                 continue
             except Exception as e:
                 if self.running:
@@ -268,8 +271,11 @@ class AIdeckCamera:
         try:
             # Read packet info header (4 bytes)
             # Format: <HBB = length (uint16), routing (uint8), function (uint8)
+            logger.debug("[AIDECK] Waiting for packet header...")
             packet_info = self._rx_bytes(4)
             length, routing, function = struct.unpack('<HBB', packet_info)
+            
+            logger.debug(f"[AIDECK] Packet: len={length}, routing={routing}, func={function}")
             
             # Read image header (length - 2 bytes, since length includes routing+function)
             img_header = self._rx_bytes(length - 2)
@@ -281,6 +287,8 @@ class AIdeckCamera:
                 return None
             
             magic, width, height, depth, img_format, img_size = struct.unpack('<BHHBBI', img_header[:11])
+            
+            logger.debug(f"[AIDECK] Header: magic=0x{magic:02X}, {width}x{height}, depth={depth}, fmt={img_format}, size={img_size}")
             
             # Verify magic byte
             if magic != MAGIC_BYTE:
