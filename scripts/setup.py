@@ -45,7 +45,7 @@ class Colors:
 MODELS = {
     'midas_v21_small': {
         'filename': 'midas_v21_small.onnx',
-        'url': 'https://github.com/isl-org/MiDaS/releases/download/v2_1/midas_v21_small-256x256.onnx',
+        'url': 'https://github.com/isl-org/MiDaS/releases/download/v2_1/model-small.onnx',
         'size_mb': 63.7,
         'description': 'MiDaS v2.1 Small - Monocular depth estimation (256x256)',
     },
@@ -134,6 +134,8 @@ def check_webots() -> bool:
         '/Applications/Webots.app',  # macOS
         '/usr/local/webots',         # Linux
         'C:\\Program Files\\Webots', # Windows
+        os.path.expanduser('~/Downloads/webots'),  # User Downloads
+        '/opt/webots',
     ]
     
     for path in webots_paths:

@@ -108,6 +108,8 @@ def find_webots_executable() -> Optional[str]:
         '~/Applications/Webots.app/Contents/MacOS/webots',
         '/usr/local/webots/webots',  # Linux
         '/snap/webots/current/usr/bin/webots',
+        '~/Downloads/webots/webots',  # User Downloads
+        '/opt/webots/webots',
     ]
     
     for path in paths:
