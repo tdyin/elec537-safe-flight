@@ -82,6 +82,8 @@ class DepthNavigationController:
         self.crash_detection_enabled = False
         self.takeoff_complete = False
         self.min_flight_altitude = nav_config.get('min_flight_altitude', 0.3)
+        self.takeoff_grace_period = nav_config.get('takeoff_grace_period', 2.0)  # seconds
+        self.takeoff_time = None  # Time when takeoff was initiated
         
         # History for temporal smoothing (from config)
         self.velocity_history = []
@@ -619,17 +621,44 @@ class DepthNavigationController:
                    pitch: float,
                    altitude: float,
                    velocity: Optional[Tuple[float, float, float]] = None) -> bool:
-        """Check if drone has crashed."""
-        if not self.takeoff_complete:
-            if altitude > self.min_flight_altitude:
-                self.takeoff_complete = True
-                self.crash_detection_enabled = True
-                logger.info(f"Takeoff complete - Crash detection enabled")
-            return False
+        """Check if drone has crashed.
         
+        Crash detection is only active after:
+        1. enable_crash_detection() has been called
+        2. The takeoff grace period has elapsed
+        3. The drone has reached min_flight_altitude
+        
+        This prevents false positives during takeoff.
+        """
+        import time
+        
+        # Not yet enabled
         if not self.crash_detection_enabled:
             return False
         
+        # Check if we're still in the takeoff grace period
+        if self.takeoff_time is not None:
+            elapsed = time.time() - self.takeoff_time
+            if elapsed < self.takeoff_grace_period:
+                # During grace period, only check for extreme tilt (actual crash)
+                # but not low altitude (which is normal during takeoff)
+                if abs(roll) > self.crash_tilt_threshold * 1.2 or abs(pitch) > self.crash_tilt_threshold * 1.2:
+                    if not self.crashed:
+                        logger.error(f"Crash during takeoff: Extreme tilt (roll={np.rad2deg(roll):.1f}°, "
+                                   f"pitch={np.rad2deg(pitch):.1f}°)")
+                        self.crashed = True
+                    return True
+                # Don't trigger crash for low altitude during grace period
+                return False
+        
+        # Mark takeoff complete when we reach min flight altitude
+        if not self.takeoff_complete:
+            if altitude > self.min_flight_altitude:
+                self.takeoff_complete = True
+                logger.info(f"Takeoff complete - Full crash detection enabled (alt={altitude:.2f}m)")
+            return False
+        
+        # Full crash detection after takeoff is complete
         if abs(roll) > self.crash_tilt_threshold or abs(pitch) > self.crash_tilt_threshold:
             if not self.crashed:
                 logger.error(f"Crash: Extreme tilt (roll={np.rad2deg(roll):.1f}°, "
@@ -648,15 +677,22 @@ class DepthNavigationController:
     def reset_crash_state(self):
         """Reset crash detection state."""
         self.crashed = False
+        self.takeoff_complete = False
+        self.takeoff_time = None
         if self.use_stable_avoidance and hasattr(self, 'stable_avoidance'):
             self.stable_avoidance.reset()
         logger.info("Crash state reset")
     
     def enable_crash_detection(self):
-        """Manually enable crash detection."""
+        """Manually enable crash detection.
+        
+        Starts the takeoff grace period during which low altitude
+        won't trigger a crash (to allow for takeoff stabilization).
+        """
+        import time
         self.crash_detection_enabled = True
-        self.takeoff_complete = True
-        logger.info("Crash detection enabled")
+        self.takeoff_time = time.time()
+        logger.info(f"Crash detection enabled with {self.takeoff_grace_period}s grace period")
     
     def get_avoidance_state(self) -> Dict:
         """Get current avoidance controller state and statistics."""

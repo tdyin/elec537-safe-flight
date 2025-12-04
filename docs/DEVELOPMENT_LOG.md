@@ -6,6 +6,40 @@
 
 ---
 
+## December 3, 2025 - Fix: Takeoff Verification and Position Drift Detection
+
+### Issue
+Hardware flight log showed drone never actually took off but navigation loop proceeded:
+- Y coordinate drifted from -1.47m to -88.85m (impossible physical motion)
+- Z altitude stayed at 0.02-0.70m instead of target 0.5m
+- Kalman filter accumulated drift on stationary surface
+
+### Root Cause
+1. `takeoff()` only warned about low altitude but didn't abort
+2. No position drift detection in navigation loop
+3. Flow Deck optical flow integrating noise without actual movement
+
+### Changes Made
+
+**`src/hardware/crazyflie_interface.py` - Robust Takeoff Verification:**
+- Sample altitude 10 times over 1 second for reliability
+- Require at least 30% of target altitude to confirm takeoff
+- **Return False and land** if takeoff fails (was just warning before)
+- Log altitude variance for debugging
+
+**`scripts/launch_hardware.py` - Position Drift Detection:**
+- Track position between frames during navigation
+- Detect if position changes >2m per 0.1s (>20m/s is impossible)
+- **Abort flight immediately** if estimator drift detected
+- Added settling period (0.5s) before enabling drift check
+
+### Impact
+- Prevents false "takeoff complete" when motors didn't spin
+- Catches Kalman filter drift early before unsafe navigation
+- Provides clear error messages for debugging hardware issues
+
+---
+
 ## December 3, 2025 - Phase 6: Safety State Machine Complete
 
 ### Objective

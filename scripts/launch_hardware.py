@@ -38,10 +38,18 @@ Safety:
 import argparse
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
+
+# Check for OpenCV (for visualization)
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    CV2_AVAILABLE = False
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -327,6 +335,76 @@ def run_preflight_checks(config: dict) -> bool:
     return checks_passed
 
 
+class FlightLogger:
+    """Simple flight logger for hardware flights."""
+    
+    def __init__(self, log_dir: Path):
+        """Initialize flight logger.
+        
+        Args:
+            log_dir: Directory to write log files
+        """
+        log_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        self.log_file = log_dir / f'{timestamp}-hardware-vision.log'
+        self.file_handle = open(self.log_file, 'w', buffering=1)
+        self.start_time = time.time()
+        self._log(f"Flight log started: {timestamp}")
+        print(f"  Log file: {self.log_file}")
+    
+    def _log(self, message: str, level: str = "INFO"):
+        """Write a log entry."""
+        elapsed = time.time() - self.start_time
+        timestamp = time.strftime("%H:%M:%S")
+        symbols = {
+            "INFO": "ℹ️",
+            "SUCCESS": "✅",
+            "ERROR": "‼️",
+            "WARNING": "⚠️",
+            "NAV": "🧭",
+            "VISION": "👁️",
+        }
+        symbol = symbols.get(level, "•")
+        line = f"[{timestamp}] [{elapsed:8.2f}s] {symbol} {message}"
+        self.file_handle.write(line + "\n")
+    
+    def log_state(self, position: tuple, velocity: tuple, battery: float,
+                  avoidance_state: str, goal_distance: float,
+                  vision_data: Optional[dict] = None):
+        """Log navigation state.
+        
+        Args:
+            position: (x, y, z) in meters
+            velocity: (vx, vy, vz) commanded velocity
+            battery: Battery voltage
+            avoidance_state: Current avoidance state
+            goal_distance: Distance to goal
+            vision_data: Optional vision analysis data
+        """
+        pos_str = f"({position[0]:.2f}, {position[1]:.2f}, {position[2]:.2f})"
+        vel_str = f"({velocity[0]:.2f}, {velocity[1]:.2f}, {velocity[2]:.2f})"
+        
+        msg = f"NAV: pos={pos_str} vel={vel_str} bat={battery:.2f}V state={avoidance_state} goal_dist={goal_distance:.2f}m"
+        
+        if vision_data:
+            left = vision_data.get('left', 0)
+            center = vision_data.get('center', 0)
+            right = vision_data.get('right', 0)
+            msg += f" vision=[L:{left:.2f} C:{center:.2f} R:{right:.2f}]"
+        
+        self._log(msg, "NAV")
+    
+    def log_event(self, event: str, level: str = "INFO"):
+        """Log an event."""
+        self._log(event, level)
+    
+    def close(self):
+        """Close log file."""
+        self._log("Flight log ended", "INFO")
+        self.file_handle.close()
+        print(f"\n  Log saved: {self.log_file}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Launch hardware flight for Safe Flight',
@@ -554,6 +632,16 @@ def run_vision_flight(config: dict, args) -> None:
     from src.drone.depth_controller import DepthNavigationController
     from src.core.types import Position
     
+    # Visualization setup
+    enable_viz = args.viz and CV2_AVAILABLE
+    visualizer = None
+    if args.viz and not CV2_AVAILABLE:
+        print("Warning: --viz requested but OpenCV not available")
+    
+    # Logging setup
+    log_dir = PROJECT_ROOT / args.log_dir
+    flight_logger = None
+    
     print("\n" + "=" * 60)
     print("VISION-BASED NAVIGATION MODE")
     print("=" * 60)
@@ -603,6 +691,23 @@ def run_vision_flight(config: dict, args) -> None:
     camera = None
     
     try:
+        # Initialize visualizer if enabled
+        if enable_viz:
+            print("\n[0/6] Initializing live visualization...")
+            from sim.webots.utils.viz_depth_live import LiveDepthVisualizer
+            visualizer = LiveDepthVisualizer(
+                window_name='Hardware Depth Analysis',
+                display_size=None  # Use actual camera frame size
+            )
+            print("✓ Visualization enabled")
+        
+        # Initialize flight logger
+        print(f"\n[0/6] Initializing flight logger...")
+        flight_logger = FlightLogger(log_dir)
+        flight_logger.log_event(f"Config: {args.config}")
+        flight_logger.log_event(f"Goal: ({goal.x}, {goal.y}, {goal.z})")
+        flight_logger.log_event(f"Altitude: {altitude}m")
+        
         # Initialize depth detector
         print("\n[1/6] Initializing depth detector...")
         vision_config = config.get('vision', {})
@@ -665,10 +770,13 @@ def run_vision_flight(config: dict, args) -> None:
         
         # Takeoff
         print(f"\n[5/6] Taking off to {altitude}m...")
+        flight_logger.log_event(f"Takeoff initiated: target={altitude}m")
         if not interface.takeoff(height=altitude):
             print("✗ Takeoff failed")
+            flight_logger.log_event("Takeoff FAILED", "ERROR")
             return
         print("✓ Takeoff complete")
+        flight_logger.log_event("Takeoff complete", "SUCCESS")
         
         # Enable crash detection after takeoff
         controller.enable_crash_detection()
@@ -677,10 +785,18 @@ def run_vision_flight(config: dict, args) -> None:
         print("\n[6/6] Starting vision-based navigation...")
         print(f"  Goal: ({goal.x:.1f}, {goal.y:.1f}, {goal.z:.1f})")
         print("  Press Ctrl+C for emergency stop")
+        flight_logger.log_event("Navigation started")
         
         loop_rate = 10  # Hz
         loop_period = 1.0 / loop_rate
         goal_np = np.array([goal.x, goal.y, goal.z])
+        log_counter = 0
+        log_interval = 5  # Log every 5 iterations (0.5s at 10Hz)
+        
+        # Initialize position tracking for drift detection
+        last_pos = None
+        drift_check_enabled = False
+        nav_start_time = time.time()
         
         try:
             while True:
@@ -706,11 +822,29 @@ def run_vision_flight(config: dict, args) -> None:
                 pos = sensor_data.get('position', (0, 0, 0))
                 current_pos = np.array([pos[0], pos[1], pos[2]])
                 
+                # Enable drift check after a brief settling period (0.5s)
+                if not drift_check_enabled and (time.time() - nav_start_time) > 0.5:
+                    drift_check_enabled = True
+                    last_pos = current_pos.copy()
+                
+                # Sanity check: detect position estimator drift
+                # If position changes by more than 2m in 0.1s, estimator is drifting
+                if drift_check_enabled and last_pos is not None:
+                    pos_delta = np.linalg.norm(current_pos[:2] - last_pos[:2])
+                    if pos_delta > 2.0:  # More than 2m/0.1s = 20m/s is impossible
+                        logger.error(f"[NAV] Position estimator drift detected! Delta={pos_delta:.2f}m")
+                        logger.error(f"[NAV] Aborting flight - state estimator unreliable")
+                        flight_logger.log_event(f"ABORT: Position estimator drift delta={pos_delta:.2f}m", "ERROR")
+                        interface.emergency_stop()
+                        return
+                    last_pos = current_pos.copy()
+                
                 # Check for crash
                 roll = sensor_data.get('roll', 0)
                 pitch = sensor_data.get('pitch', 0)
                 if controller.check_crash(roll, pitch, pos[2]):
                     print("\n✗ Crash detected! Emergency stop.")
+                    flight_logger.log_event(f"CRASH detected: roll={np.rad2deg(roll):.1f}° pitch={np.rad2deg(pitch):.1f}° alt={pos[2]:.2f}m", "ERROR")
                     interface.emergency_stop()
                     return
                 
@@ -718,6 +852,7 @@ def run_vision_flight(config: dict, args) -> None:
                 dist_to_goal = np.linalg.norm(current_pos[:2] - goal_np[:2])
                 if dist_to_goal < 0.2:  # 20cm threshold
                     print(f"\n✓ Goal reached! Distance: {dist_to_goal:.2f}m")
+                    flight_logger.log_event(f"Goal reached: distance={dist_to_goal:.2f}m", "SUCCESS")
                     break
                 
                 # Compute target direction and velocity
@@ -748,6 +883,39 @@ def run_vision_flight(config: dict, args) -> None:
                 battery = sensor_data.get('battery', 0)
                 avoidance_state = controller.get_avoidance_state()
                 state_str = avoidance_state.get('state', 'unknown')
+                
+                # Update visualization if enabled
+                if visualizer and vision_data:
+                    analysis = vision_data.get('analysis', {})
+                    state_info = {
+                        'state': state_str,
+                        'emergency_count': avoidance_state.get('emergency_count', 0),
+                        'avoidance_count': avoidance_state.get('avoidance_count', 0),
+                    }
+                    flight_info = {
+                        'position': pos,
+                        'velocity': (safe_velocity[0], safe_velocity[1]),
+                        'goal': (goal.x, goal.y, goal.z),
+                        'distance_to_goal': dist_to_goal,
+                        'flight_time': time.time() - loop_start,
+                    }
+                    # Get depth map from vision_data
+                    depth_map = vision_data.get('depth_map', np.zeros((256, 256)))
+                    visualizer.visualize(frame, depth_map, analysis, state_info, flight_info)
+                
+                # Log state periodically
+                log_counter += 1
+                if log_counter >= log_interval:
+                    log_counter = 0
+                    flight_logger.log_state(
+                        position=pos,
+                        velocity=(safe_velocity[0], safe_velocity[1], safe_velocity[2]),
+                        battery=battery,
+                        avoidance_state=state_str,
+                        goal_distance=dist_to_goal,
+                        vision_data=vision_data.get('analysis', {}) if vision_data else None
+                    )
+                
                 print(f"\r  Pos: ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f}) | "
                       f"Goal: {dist_to_goal:.2f}m | "
                       f"State: {state_str} | "
@@ -761,17 +929,22 @@ def run_vision_flight(config: dict, args) -> None:
                     
         except KeyboardInterrupt:
             print("\n\n⚠️  Emergency stop triggered!")
+            if flight_logger:
+                flight_logger.log_event("Emergency stop: KeyboardInterrupt", "WARNING")
             interface.emergency_stop()
             print("Motors stopped.")
             return
         
         # Land
         print("\n\nLanding...")
+        flight_logger.log_event("Landing initiated")
         if not interface.land():
             print("✗ Landing failed - emergency stop")
+            flight_logger.log_event("Landing FAILED - emergency stop", "ERROR")
             interface.emergency_stop()
             return
         print("✓ Landing complete")
+        flight_logger.log_event("Landing complete", "SUCCESS")
         
         print("\n" + "=" * 60)
         print("FLIGHT COMPLETED SUCCESSFULLY")
@@ -787,6 +960,10 @@ def run_vision_flight(config: dict, args) -> None:
                 pass
     
     finally:
+        if visualizer:
+            visualizer.close()
+        if flight_logger:
+            flight_logger.close()
         if camera:
             camera.disconnect()
         if interface:

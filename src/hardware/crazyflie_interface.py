@@ -229,6 +229,53 @@ class CrazyflieHardwareInterface(DroneInterface):
         except Exception as e:
             logger.error(f"[HARDWARE] Velocity command failed: {e}")
     
+    def _wait_for_position_estimator(self, timeout: float = 5.0) -> bool:
+        """Wait for position estimator to converge.
+        
+        Checks that the Kalman filter has converged by reading variance values.
+        
+        Args:
+            timeout: Maximum time to wait in seconds
+            
+        Returns:
+            True if estimator converged, False if timeout
+        """
+        import time
+        logger.info("[HARDWARE] Waiting for position estimator to converge...")
+        
+        start = time.time()
+        threshold = 0.001  # Variance threshold for convergence
+        
+        try:
+            # Reset the position estimator
+            self.scf.cf.param.set_value('kalman.resetEstimation', '1')
+            time.sleep(0.1)
+            self.scf.cf.param.set_value('kalman.resetEstimation', '0')
+            
+            # Wait for variances to decrease
+            while time.time() - start < timeout:
+                try:
+                    var_x = self.scf.cf.param.get_value('kalman.varPX')
+                    var_y = self.scf.cf.param.get_value('kalman.varPY')
+                    var_z = self.scf.cf.param.get_value('kalman.varPZ')
+                    
+                    logger.debug(f"[HARDWARE] Kalman variance: X={var_x:.4f}, Y={var_y:.4f}, Z={var_z:.4f}")
+                    
+                    if float(var_x) < threshold and float(var_y) < threshold:
+                        logger.info(f"[HARDWARE] Position estimator converged (var={var_x:.4f}, {var_y:.4f})")
+                        return True
+                except Exception as e:
+                    logger.debug(f"[HARDWARE] Could not read Kalman variance: {e}")
+                
+                time.sleep(0.1)
+            
+            logger.warning(f"[HARDWARE] Position estimator did not converge within {timeout}s")
+            return False
+            
+        except Exception as e:
+            logger.warning(f"[HARDWARE] Error waiting for estimator: {e}")
+            return False
+    
     def takeoff(self, height: float = 0.5) -> bool:
         """Takeoff to specified height using MotionCommander.
         
@@ -239,26 +286,68 @@ class CrazyflieHardwareInterface(DroneInterface):
             True if takeoff successful
         """
         if not self._is_connected or not self.scf:
+            logger.error("[HARDWARE] Cannot takeoff: not connected")
             return False
         
         try:
+            logger.info(f"[HARDWARE] Arming for takeoff to {height}m...")
             self.safety.arm()
+            
+            # Wait for position estimator to converge first
+            if not self._wait_for_position_estimator(timeout=5.0):
+                logger.warning("[HARDWARE] Proceeding with takeoff despite estimator not fully converged")
             
             # Get start position for geofence
             time.sleep(0.5)  # Wait for sensor data
             pos = self.get_position()
+            logger.info(f"[HARDWARE] Start position: ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})")
             self.safety.set_start_position(Position(x=pos[0], y=pos[1], z=pos[2]))
             
             # Create MotionCommander and takeoff
+            logger.info("[HARDWARE] Creating MotionCommander...")
             self.mc = MotionCommander(self.scf, default_height=height)
+            
+            logger.info("[HARDWARE] Calling take_off() - this will reset position estimator and ascend...")
             self.mc.take_off()
             
+            # Verify we actually took off by checking altitude
+            # Wait and sample altitude multiple times for reliability
+            time.sleep(1.0)  # Wait for altitude reading to stabilize
+            
+            altitude_samples = []
+            for _ in range(10):
+                pos = self.get_position()
+                altitude_samples.append(pos[2])
+                time.sleep(0.1)
+            
+            actual_altitude = np.median(altitude_samples)
+            altitude_variance = np.var(altitude_samples)
+            post_takeoff_pos = self.get_position()
+            
+            logger.info(f"[HARDWARE] Post-takeoff position: ({post_takeoff_pos[0]:.2f}, {post_takeoff_pos[1]:.2f}, {post_takeoff_pos[2]:.2f})")
+            logger.info(f"[HARDWARE] Altitude check: median={actual_altitude:.3f}m, variance={altitude_variance:.6f}")
+            
+            # Check for takeoff failure: altitude too low
+            min_takeoff_altitude = height * 0.3  # At least 30% of target height
+            if actual_altitude < min_takeoff_altitude:
+                logger.error(f"[HARDWARE] ✗ Takeoff FAILED: altitude {actual_altitude:.3f}m < minimum {min_takeoff_altitude:.2f}m")
+                logger.error(f"[HARDWARE]   Possible causes: motors not spinning, propellers not attached, or surface too close")
+                # Land/stop and return failure
+                try:
+                    self.mc.land()
+                except Exception:
+                    pass
+                self.mc = None
+                return False
+            
             self.safety.set_flying()
-            logger.info(f"[HARDWARE] ✓ Takeoff complete → altitude: {height}m")
+            logger.info(f"[HARDWARE] ✓ Takeoff complete → altitude: {actual_altitude:.2f}m (target: {height}m)")
             return True
             
         except Exception as e:
             logger.error(f"[HARDWARE] ✗ Takeoff failed: {e}")
+            import traceback
+            logger.error(f"[HARDWARE] Traceback: {traceback.format_exc()}")
             return False
     
     def land(self) -> bool:

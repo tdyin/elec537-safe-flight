@@ -87,6 +87,7 @@ drone:
     crash_altitude_threshold: 0.15
     warning_tilt_threshold: 20.0
     min_flight_altitude: 0.3
+    takeoff_grace_period: 2.0  # Seconds to wait after takeoff before full crash detection
 
   path_planning:
     enabled: false  # Disable for initial hardware tests
