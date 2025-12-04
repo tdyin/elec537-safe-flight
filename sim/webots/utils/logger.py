@@ -48,10 +48,10 @@ class ControllerLogger:
         
         # Symbols for different log levels
         symbols = {
-            "INFO": "ℹ",
-            "SUCCESS": "✓",
-            "ERROR": "✗",
-            "WARNING": "⚠",
+            "INFO": "ℹ️",
+            "SUCCESS": "✅",
+            "ERROR": "‼️",
+            "WARNING": "⚠️",
             "CRASH": "💥",
             "DEBUG": "🔍",
         }
@@ -70,7 +70,7 @@ class ControllerLogger:
                 self.file_handle.write(log_line + "\n")
                 self.file_handle.flush()
             except Exception as e:
-                print(f"⚠ Failed to write to log file: {e}")
+                print(f"⚠️ Failed to write to log file: {e}")
     
     def log_crash_report(self, crash_type: str, crash_data: Dict[str, Any]):
         """
@@ -210,10 +210,10 @@ def log(message: str, level: str = "INFO"):
         # Fallback to simple console logging
         timestamp = time.strftime("%H:%M:%S")
         symbols = {
-            "INFO": "ℹ",
-            "SUCCESS": "✓",
-            "ERROR": "✗",
-            "WARNING": "⚠",
+            "INFO": "ℹ️",
+            "SUCCESS": "✅",
+            "ERROR": "‼️",
+            "WARNING": "⚠️",
             "CRASH": "💥",
             "DEBUG": "🔍",
         }

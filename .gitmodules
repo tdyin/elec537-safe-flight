@@ -1,0 +1,6 @@
+[submodule "external/crazyflie/crazyflie-firmware"]
+	path = external/crazyflie/crazyflie-firmware
+	url = https://github.com/bitcraze/crazyflie-firmware.git
+[submodule "external/crazyflie/aideck-gap8-examples"]
+	path = external/crazyflie/aideck-gap8-examples
+	url = https://github.com/bitcraze/aideck-gap8-examples.git

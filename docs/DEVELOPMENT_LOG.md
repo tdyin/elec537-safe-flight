@@ -2,7 +2,578 @@
 
 **Project:** Safe Flight - Vision-Based Obstacle Avoidance  
 **Repository:** tdyin/elec537-safe-flight  
-**Branch:** setup/sim-dev
+**Branch:** feat/real
+
+---
+
+## December 3, 2025 - Fix: Takeoff Verification and Position Drift Detection
+
+### Issue
+Hardware flight log showed drone never actually took off but navigation loop proceeded:
+- Y coordinate drifted from -1.47m to -88.85m (impossible physical motion)
+- Z altitude stayed at 0.02-0.70m instead of target 0.5m
+- Kalman filter accumulated drift on stationary surface
+
+### Root Cause
+1. `takeoff()` only warned about low altitude but didn't abort
+2. No position drift detection in navigation loop
+3. Flow Deck optical flow integrating noise without actual movement
+
+### Changes Made
+
+**`src/hardware/crazyflie_interface.py` - Robust Takeoff Verification:**
+- Sample altitude 10 times over 1 second for reliability
+- Require at least 30% of target altitude to confirm takeoff
+- **Return False and land** if takeoff fails (was just warning before)
+- Log altitude variance for debugging
+
+**`scripts/launch_hardware.py` - Position Drift Detection:**
+- Track position between frames during navigation
+- Detect if position changes >2m per 0.1s (>20m/s is impossible)
+- **Abort flight immediately** if estimator drift detected
+- Added settling period (0.5s) before enabling drift check
+
+### Impact
+- Prevents false "takeoff complete" when motors didn't spin
+- Catches Kalman filter drift early before unsafe navigation
+- Provides clear error messages for debugging hardware issues
+
+---
+
+## December 3, 2025 - Phase 6: Safety State Machine Complete
+
+### Objective
+Complete Phase 6 of the hardware deployment plan: implement differentiated emergency responses based on trigger type.
+
+### Changes Made
+
+**Enhanced `src/core/safety.py`:**
+
+1. **New EmergencyResponse Enum**
+   - `LAND`: Controlled descent to ground (for battery low, communication loss)
+   - `HOVER`: Stop and hold position (for geofence breach)
+   - `CUTOFF`: Immediate motor stop (for tilt, crash, manual stop)
+
+2. **Emergency Response Mapping (EMERGENCY_RESPONSES)**
+   - `LOW_BATTERY` → `LAND`: Land to conserve remaining battery
+   - `GEOFENCE_BREACH` → `HOVER`: Stop movement but maintain altitude
+   - `EXCESSIVE_TILT` → `CUTOFF`: Motor cutoff (likely crashed)
+   - `LOW_ALTITUDE` → `CUTOFF`: Motor cutoff (on ground)
+   - `COMMUNICATION_LOSS` → `LAND`: Controlled landing for safety
+   - `MANUAL_STOP` → `CUTOFF`: Immediate stop per user request
+   - `STOPPED_LOW` → `CUTOFF`: Already on ground
+
+3. **New `recommended_response` Property**
+   - Returns appropriate `EmergencyResponse` based on `last_trigger`
+   - Defaults to `CUTOFF` for unknown triggers
+
+**Enhanced `src/hardware/crazyflie_interface.py`:**
+
+1. **New `emergency_land()` Method**
+   - Uses MotionCommander to perform controlled descent
+   - Falls back to `emergency_stop()` if landing fails
+
+2. **New `emergency_hover()` Method**
+   - Sends zero velocities to hold position
+   - Maintains altitude, can potentially recover
+
+3. **Updated `_on_emergency()` Callback**
+   - Now selects response based on `safety.recommended_response`
+   - Routes to appropriate handler: `emergency_land()`, `emergency_hover()`, or `emergency_stop()`
+
+**Enhanced `src/sim/webots_interface.py`:**
+
+1. **New `emergency_land()` Method**
+   - Sends downward velocity for controlled descent
+   - Sets state to LANDING
+
+2. **New `emergency_hover()` Method**
+   - Zeros velocities without marking as crashed
+   - Allows potential recovery
+
+3. **Updated `_on_emergency()` Callback**
+   - Mirrors hardware interface behavior
+   - Uses same response selection logic
+
+**Updated `tests/test_safety_monitor.py` (11 new tests):**
+
+- `TestEmergencyResponses` class with:
+  - Response enum verification
+  - Mapping tests for all trigger types
+  - `recommended_response` property tests
+  - Integration tests with actual safety checks
+
+### Test Summary
+
+| Test File | Tests | New Tests |
+|-----------|-------|-----------|
+| test_safety_monitor.py | 37 | +11 |
+
+### Emergency Response Summary
+
+| Trigger | Response | Rationale |
+|---------|----------|-----------|
+| Low battery | Land | Save remaining power |
+| Geofence breach | Hover | Stop, maintain altitude |
+| Excessive tilt | Cutoff | Likely crashed |
+| Low altitude | Cutoff | Already on ground |
+| Comm loss | Land | Controlled landing |
+| Manual stop | Cutoff | Immediate per user |
+
+### Impact
+- Safety system now provides nuanced responses instead of always cutting motors
+- Geofence breach allows recovery (hover then can be commanded back)
+- Low battery gets controlled landing instead of crash
+- Both hardware and simulation interfaces handle emergencies identically
+
+---
+
+## December 3, 2025 - Phase 4: Hardware Tests Complete
+
+### Objective
+Complete Phase 4 of the hardware deployment plan: establish testing framework for hardware-specific code before flight implementation.
+
+### Changes Made
+
+**Updated `pytest.ini`:**
+- Added custom markers: `hardware`, `slow`, `integration`
+- Hardware tests can be skipped with `-m "not hardware"`
+
+**Enhanced `tests/conftest.py`:**
+
+1. **Pytest Configuration**
+   - `pytest_configure()`: Registers custom markers
+   - `pytest_addoption()`: Adds `--hardware` CLI flag
+   - `pytest_collection_modifyitems()`: Auto-skips hardware tests unless flag provided
+
+2. **Configuration Fixtures**
+   - `hardware_config`: Full hardware configuration dictionary
+   - `simulation_config`: Simulation configuration dictionary
+
+3. **Mock cflib Fixtures**
+   - `mock_crazyflie`: Mocked Crazyflie with commander, param, log
+   - `mock_sync_crazyflie`: Mocked SyncCrazyflie wrapper
+   - `mock_log_config`: Mocked LogConfig with callback lists
+   - `mock_motion_commander`: Mocked MotionCommander for flight
+
+4. **Sensor Data Fixtures**
+   - `sample_sensor_data`: Normal flight sensor readings
+   - `critical_sensor_data`: Data triggering safety conditions
+   - `mock_deck_parameters`: Deck detection parameters
+
+**New Test File `tests/test_base_interface.py` (14 tests):**
+- `TestDroneInterfaceABC`: ABC contract verification
+- `TestConcreteImplementation`: Interface method behavior
+- `TestContextManager`: Context manager protocol
+
+**New Test File `tests/test_safety_monitor.py` (26 tests):**
+- `TestSafetyMonitorInit`: Configuration and defaults
+- `TestStateTransitions`: State machine transitions (INIT→READY→ARMED→FLYING→LANDING→LANDED)
+- `TestSafetyChecks`: Safety condition triggers (battery, geofence, tilt, altitude)
+- `TestCommunicationCheck`: Communication timeout detection
+- `TestCallbacks`: Emergency and warning callbacks
+- `TestManualControl`: Manual emergency and reset
+- `TestProperties`: is_safe, can_fly properties
+- `TestStartPosition`: Geofence relative to start position
+
+**New Test File `tests/test_crazyflie_interface.py` (23 tests):**
+- `TestCrazyflieInterfaceInit`: Configuration loading
+- `TestConnectionMethods`: Connect/disconnect behavior
+- `TestVelocityCommands`: Forward-only mode, speed clamping, emergency blocking
+- `TestSensorData`: Data retrieval when disconnected
+- `TestFlightMethods`: Takeoff/land when disconnected
+- `TestEmergencyStop`: Emergency stop handling
+- `TestContextManager`: Context manager protocol
+- `TestHardwareRequirements`: Deck requirement settings
+- `TestSafetyIntegration`: Safety monitor integration
+
+### Test Summary
+
+| Test File | Tests | Coverage |
+|-----------|-------|----------|
+| test_base_interface.py | 14 | DroneInterface ABC |
+| test_safety_monitor.py | 26 | SafetyMonitor state machine |
+| test_crazyflie_interface.py | 23 | CrazyflieHardwareInterface |
+| **Phase 4 Total** | **63** | Hardware modules |
+
+### Test Markers Usage
+
+```bash
+# Run all tests except hardware
+pytest tests/ -m "not hardware"
+
+# Run only hardware tests (requires --hardware flag)
+pytest tests/ --hardware -m "hardware"
+
+# Run slow tests
+pytest tests/ -m "slow"
+```
+
+### Rationale
+- Mock fixtures allow testing hardware code without physical drone
+- Custom markers enable selective test execution
+- Comprehensive state machine tests ensure safety logic is correct
+- Interface tests verify ABC contract compliance
+
+### Impact
+- Phase 4 complete: testing framework ready for hardware code
+- Total test count: 138 tests (63 new)
+- All tests pass with mocked cflib
+- Next: Phase 5 (flight sequences with MotionCommander)
+
+---
+
+## December 3, 2025 - Phase 3: cflib Logging System Complete
+
+### Objective
+Complete Phase 3 of the hardware deployment plan: implement sensor data acquisition via cflib LogConfig subscriptions for real Crazyflie hardware.
+
+### Changes Made
+
+**Enhanced `src/hardware/sensor_logger.py`:**
+
+1. **Multi-Ranger Support (Optional)**
+   - Added `_setup_range_log()` for Multi-Ranger deck distance logging
+   - Range values: front, back, left, right, up, zrange
+   - Automatic deck detection via log TOC: `_try_multiranger_detection()`
+   - Millimeter to meter conversion with out-of-range handling (>4000mm → None)
+
+2. **Improved Configuration Integration**
+   - Now accepts full `drone` config section from `hardware.yaml`
+   - Configurable rates: `state_estimate_rate_ms`, `stabilizer_rate_ms`, `battery_rate_ms`, `range_rate_ms`
+   - Reads `hardware.multiranger_required` flag
+
+3. **Enhanced Data Storage**
+   - Stores both degrees and radians for orientation: `roll`, `roll_deg`, etc.
+   - Added `altitude` field (copies `stateEstimate.z`)
+   - Added `last_update` dict tracking per-log-type timestamps
+
+4. **New Convenience Methods**
+   - `get_position()` → (x, y, z) tuple
+   - `get_orientation()` → (roll, pitch, yaw) in radians
+   - `get_velocity()` → (vx, vy, vz) tuple
+   - `get_battery()` → voltage float
+   - `get_range_readings()` → dict with all range values
+   - `wait_for_data(timeout)` → blocks until sensor data arrives
+
+5. **User Callback System**
+   - `add_callback(log_type, func)` for custom data handlers
+   - `remove_callback(log_type, func)` to unregister
+   - Log types: 'state_estimate', 'stabilizer', 'battery', 'range'
+
+6. **Error Handling**
+   - Error counting with auto-stop after max errors (10)
+   - Graceful cleanup in `stop_logging()`
+   - Properties: `is_logging`, `has_multiranger`
+
+**Updated `src/hardware/crazyflie_interface.py`:**
+- Stores drone config section for sensor logger: `self._drone_config`
+- Passes proper config to `SensorLogger(self.scf, self._drone_config)`
+- Waits for initial sensor data after setup: `sensor_logger.wait_for_data()`
+- Properly stops logging on disconnect
+
+**New Test File `tests/test_sensor_logger.py`:**
+- 20 unit tests with mocked cflib
+- Test classes:
+  - `TestSensorLoggerInit`: Configuration handling
+  - `TestSensorLoggerData`: Data access methods
+  - `TestSensorLoggerCallbacks`: Internal callback processing
+  - `TestSensorLoggerUserCallbacks`: User-registered callbacks
+  - `TestSensorLoggerThreadSafety`: Concurrent access
+  - `TestSensorLoggerWaitForData`: Blocking wait functionality
+  - `TestMultiRangerDetection`: Deck detection from TOC
+
+### Log Variables
+
+| LogConfig | Variables | Rate | Purpose |
+|-----------|-----------|------|---------|
+| StateEstimate | x, y, z, vx, vy, vz | 20ms | Position/velocity from Flow Deck |
+| Stabilizer | roll, pitch, yaw | 20ms | Orientation (degrees) |
+| Battery | pm.vbat | 500ms | Battery voltage |
+| Range | front, back, left, right, up, zrange | 50ms | Multi-Ranger distances (optional) |
+
+### Rationale
+- Thread-safe sensor cache ensures reliable data access from control loop
+- Callback system allows safety monitor to react immediately to sensor changes
+- Configurable rates match hardware capabilities and reduce CPU load
+- Separate methods for each data type simplify downstream code
+- Multi-Ranger is optional (detected via TOC) since Flow Deck alone provides position
+
+### Impact
+- Phase 3 complete: sensor data pipeline ready for hardware flight
+- CrazyflieInterface can now read all required sensor data
+- Test coverage: 75 tests passing (20 new for sensor logger)
+- Next: Phase 4 (hardware tests) and Phase 5 (flight sequences)
+
+---
+
+## December 3, 2025 - Scripts Reorganization & Makefile
+
+### Objective
+Consolidate all scripts into `scripts/` directory and create Makefile as primary entry point.
+
+### Changes Made
+
+**Script Reorganization:**
+
+1. **Moved `launch_sim.py` to `scripts/`**
+   - Updated all path references to use `PROJECT_ROOT`
+   - Fixed relative imports for models, configs, logs
+
+2. **Rewrote `cleanup.sh` as `cleanup.py`**
+   - Full Python rewrite with same CLI interface
+   - Same functionality: `--all`, `--logs`, `--viz`, `--cache`, `--keep-latest`, `--older-than`, `--dry-run`
+   - Interactive mode when no options specified
+   - Removed bash dependency for cross-platform compatibility
+
+3. **Removed `download_models.py`**
+   - Functionality integrated into new `scripts/setup.py`
+
+4. **Created `scripts/launch_hardware.py`**
+   - Placeholder for hardware flight implementation
+   - Preflight checks for dependencies, battery, AI Deck, models
+   - CLI interface ready for Phase 6-8 implementation
+
+5. **Created `scripts/setup.py`**
+   - Environment verification (Python version, conda, dependencies)
+   - Model download with progress bar
+   - Webots detection
+   - Directory structure creation
+   - `--verify`, `--models`, `--clean` modes
+
+6. **Created `Makefile`**
+   - Primary entry point for all project commands
+   - Categories: Setup, Simulation, Hardware, Analysis, Testing, Cleanup
+   - Key targets:
+     - `make setup` - Full environment setup
+     - `make sim` - Launch SITL simulation
+     - `make hardware` - Launch hardware flight
+     - `make test` - Run tests
+     - `make clean` - Interactive cleanup
+
+**Updated Documentation:**
+- `docs/DOCUMENTATION.md` - Updated Quick Start, commands, project structure
+- `docs/DEPLOYMENT_PLAN.md` - Updated directory structure and refactoring tasks
+
+### Rationale
+- Makefile provides simple, memorable commands (`make sim` vs `python scripts/launch_sim.py`)
+- Python scripts are cross-platform (removed bash dependency)
+- Consolidated setup reduces onboarding friction
+- Clear separation of concerns in scripts/
+
+### Impact
+- New workflow: `make setup` → `make sim` or `make hardware`
+- All bash dependencies removed
+- Cleaner project root (only Makefile and config files)
+
+---
+
+## December 3, 2025 - Phase 2: Configuration System Complete
+
+### Objective
+Complete Phase 2 of the hardware deployment plan: centralized configuration system with separate files for simulation and hardware modes.
+
+### Changes Made
+
+**New Configuration Module (`src/core/config.py`):**
+- Centralized config loading with `load_config()`
+- Path utilities: `get_config_path()`, `get_project_root()`
+- Nested access helper: `get_nested(config, 'drone', 'navigation', 'cruise_speed')`
+- Mode detection: `is_hardware_mode()`, `is_simulation_mode()`
+- Validation: `validate_hardware_config()`, `validate_simulation_config()`
+- Default value application for missing config keys
+
+**Updated `src/core/__init__.py`:**
+- Exports all config utilities for easy access
+- Single import: `from src.core import load_config, get_nested`
+
+**Updated `scripts/launch_hardware.py`:**
+- Added `--config` argument (default: `config/hardware.yaml`)
+- Preflight checks now read from config:
+  - Battery thresholds from `drone.safety.battery_min_voltage`
+  - AI Deck settings from `drone.ai_deck.*`
+  - Navigation settings from `drone.navigation.*`
+  - Model path from `vision.depth.model_path`
+- Command line overrides for `--uri`, `--altitude`
+- Shows navigation configuration summary (forward-only mode, speeds, geofence)
+
+**Updated `src/main.py`:**
+- Replaced local `load_config()` with `src.core.config.load_config()`
+- Uses `get_nested()` for safe config access
+- Uses `is_hardware_mode()` for platform detection
+
+**New Tests (`tests/test_config.py`):**
+- 21 tests covering config loading, validation, and utilities
+- All tests passing
+
+### Configuration Structure
+
+**Simulation (`config/sim.yaml`):**
+```yaml
+mode: "simulation"
+vision: { depth: { model_path, use_gpu }, obstacle: { thresholds... } }
+drone: { interface: "webots", simulation: { host, port }, navigation: {...} }
+logging: { level: "INFO", log_directory: "sim/webots/logs" }
+```
+
+**Hardware (`config/hardware.yaml`):**
+```yaml
+mode: "hardware"
+drone:
+  uri: "radio://0/80/2M/E7E7E7E7E7"
+  hardware: { flow_deck_required, ai_deck_required }
+  ai_deck: { ip, port, encoding, frame_rate }
+  safety: { battery_min_voltage, geofence_radius, crash_tilt_threshold }
+  navigation: { forward_only: true, cruise_speed: 0.3, ... }
+  flight: { takeoff_height, takeoff_velocity, land_velocity }
+logging: { level: "DEBUG", log_directory: "logs/hardware" }
+```
+
+### Rationale
+- Centralized config module prevents code duplication
+- `get_nested()` handles missing keys gracefully without try/except blocks
+- Validation functions catch config issues before flight
+- Default values ensure all expected keys exist
+
+### Impact
+- Single source of truth for configuration loading
+- Preflight checks now show actual config values
+- Config validation available for both modes
+- Ready for Phase 3 (cflib logging system) which will use these configs
+
+---
+
+## December 3, 2025 - Phase 1: Codebase Refactoring Complete
+
+### Objective
+Implement Phase 1 of the hardware deployment plan: refactor codebase to separate shared core logic from simulation and hardware-specific code.
+
+### Changes Made
+
+**New Directory Structure:**
+```
+src/
+├── core/                    # NEW: Shared abstractions
+│   ├── __init__.py
+│   ├── base_interface.py    # DroneInterface ABC
+│   ├── types.py             # SensorData, Position, etc.
+│   ├── safety.py            # SafetyMonitor state machine
+│   └── navigation.py        # Waypoint navigation utilities
+├── sim/                     # Simulation-specific
+│   ├── __init__.py          # Updated exports
+│   ├── bridge.py            # TCP bridge (existing)
+│   └── webots_interface.py  # NEW: Moved from drone/
+├── hardware/                # NEW: Hardware-specific
+│   ├── __init__.py
+│   ├── crazyflie_interface.py  # cflib integration
+│   ├── aideck_camera.py     # AI deck streaming
+│   └── sensor_logger.py     # cflib LogConfig wrapper
+├── drone/                   # Backward compat + controllers
+│   └── __init__.py          # Re-exports for compatibility
+config/                      # NEW: Split configs
+├── sim.yaml                 # Simulation configuration
+└── hardware.yaml            # Hardware configuration
+```
+
+**Key New Modules:**
+
+1. `src/core/base_interface.py` - Abstract base class defining drone interface contract
+   - `connect()`, `disconnect()`, `get_sensor_data()`
+   - `get_position()`, `get_orientation()`, `get_velocity()`
+   - `send_velocity_command()`, `takeoff()`, `land()`, `emergency_stop()`
+
+2. `src/core/types.py` - Shared data structures
+   - `Position`, `Orientation`, `Velocity` dataclasses
+   - `SensorData` container with dict conversion
+   - `VelocityCommand`, `Waypoint` for navigation
+   - `SafetyState` enum
+
+3. `src/core/safety.py` - Consolidated safety monitor
+   - State machine: INITIALIZING → READY → ARMED → FLYING → LANDING → LANDED
+   - Emergency triggers: LOW_BATTERY, GEOFENCE_BREACH, EXCESSIVE_TILT, etc.
+   - Callbacks for emergency and warning events
+
+4. `src/sim/webots_interface.py` - Refactored simulation interface
+   - Inherits from `DroneInterface` ABC
+   - Integrates with `SafetyMonitor`
+   - Implements `takeoff()` and `land()` methods
+
+5. `src/hardware/crazyflie_interface.py` - New hardware interface
+   - Uses cflib and MotionCommander
+   - Forward-only mode for initial testing
+   - Deck detection and validation
+
+6. `src/hardware/sensor_logger.py` - cflib logging wrapper
+   - StateEstimate, Stabilizer, Battery LogConfigs
+   - Thread-safe sensor data caching
+
+7. `src/hardware/aideck_camera.py` - AI Deck camera streaming
+   - WiFi TCP connection
+   - JPEG frame decoding
+   - Background receiver thread
+
+**File Renames:**
+- `launch.py` → `launch_sim.py`
+
+**Backward Compatibility:**
+- `src.drone.WebotsInterface` still works (re-exported from `src.sim`)
+- Existing code using old imports continues to function
+
+### Rationale
+- Clean separation enables parallel development of sim and hardware features
+- ABC ensures consistent interface across environments
+- Consolidated safety logic reduces duplication and potential bugs
+- Split configs prevent hardware parameters from affecting simulation
+
+### Impact
+- Foundation laid for Phase 2-8 of hardware deployment
+- All existing tests should still pass
+- New hardware code can be developed and tested independently
+
+---
+
+## December 3, 2025 - Hardware Deployment Planning
+
+### Objective
+Create comprehensive plan to transition from SITL-only system to unified codebase supporting both simulation and real Crazyflie hardware.
+
+### Analysis Completed
+
+**Current Hardware Interface Gaps Identified:**
+- `CrazyflieInterface.get_sensor_data()` - Stub returning empty dict
+- `CrazyflieInterface.get_position()` - Returns `(0,0,0)` always
+- No cflib logging (LogConfig) integration
+- No AI Deck camera streaming
+- No takeoff/land sequences
+- No battery/safety monitoring
+
+### Plan Created: `docs/DEPLOYMENT_PLAN.md`
+
+**8-Phase Implementation:**
+1. Refactor codebase (shared core, separate sim/hardware)
+2. Split configuration (sim.yaml, hardware.yaml)
+3. Implement cflib logging system
+4. Create hardware test framework
+5. Add flight sequences (takeoff/land via MotionCommander)
+6. Implement safety state machine
+7. Create AI Deck camera module
+8. Add simulation equivalence features
+
+**Design Decisions:**
+- Offboard vision processing (laptop runs MiDaS)
+- Flow Deck for relative positioning
+- MotionCommander for motion control
+- Forward-only mode for initial testing
+
+### Documentation Updated
+- `docs/DOCUMENTATION.md` - Added Hardware Deployment section
+- `.github/copilot-instructions.md` - Added DEVELOPMENT_LOG reminder
+
+### Impact
+- Clear roadmap for hardware enablement
+- Estimated 12-day implementation timeline
+- Risk mitigation strategies defined
+- Testing checklist created
 
 ---
 

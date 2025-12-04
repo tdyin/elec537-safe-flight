@@ -43,7 +43,7 @@ class SafetyMonitor:
             warning_tilt_threshold: Tilt angle to reduce aggressiveness (radians)
             crash_altitude_threshold: Minimum altitude before crash (meters)
             min_flight_altitude: Altitude to consider takeoff complete (meters)
-            config: Optional configuration dictionary from config.yaml
+            config: Optional configuration dictionary
         """
         # Load config values if provided
         drone_config = config.get('drone', {}) if config else {}

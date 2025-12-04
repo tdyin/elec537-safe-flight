@@ -54,7 +54,7 @@ class AStarPlanner(PathPlanner):
     
     This planner finds optimal paths through free space while maintaining
     safety margins from obstacles. Parameters can be configured via 
-    config.yaml drone.path_planning section.
+    drone.path_planning section in config files.
     """
     
     def __init__(self,
@@ -73,7 +73,7 @@ class AStarPlanner(PathPlanner):
             diagonal_cost: Cost for diagonal movement
             straight_cost: Cost for straight movement
             smoothness_weight: Weight for favoring smooth paths (0-1)
-            config: Optional configuration dictionary from config.yaml
+            config: Optional configuration dictionary
         """
         # Load config values if provided
         path_config = {}

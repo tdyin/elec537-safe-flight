@@ -8,10 +8,10 @@ Displays live depth map analysis during simulation including:
 - Avoidance direction arrows (lateral and vertical)
 - Flight status information
 
-Can be enabled via config.yaml or command line.
+Can be enabled via config or command line.
 
 Usage:
-    # Add to config.yaml:
+    # Add to config/sim.yaml:
     visualization:
       enabled: true
       depth_display: true
@@ -42,37 +42,53 @@ class LiveDepthVisualizer:
     """Real-time depth visualization overlay."""
     
     def __init__(self, window_name='Depth Analysis', 
-                 display_size=(640, 480),
+                 display_size=None,
                  save_dir=None):
         """
         Initialize live visualizer.
         
         Args:
             window_name: Name of display window
-            display_size: (width, height) of display
+            display_size: (width, height) of display, or None to use input image size
             save_dir: Optional directory to save frames
         """
         self.window_name = window_name
-        self.display_size = display_size
+        self.display_size = display_size  # None means use input size
         self.save_dir = Path(save_dir) if save_dir else None
         self.frame_count = 0
         self.enabled = CV2_AVAILABLE
         self._window_created = False
+        self._current_size = None  # Track current window size
         
         if self.save_dir:
             self.save_dir.mkdir(parents=True, exist_ok=True)
             
-    def _ensure_window(self):
-        """Create window on first use (deferred for Webots compatibility)."""
+    def _ensure_window(self, width=640, height=480):
+        """Create or resize window (deferred for Webots compatibility).
+        
+        Args:
+            width: Window width
+            height: Window height
+        """
+        target_size = (width, height)
+        
         if self.enabled and not self._window_created:
             try:
                 cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL | cv2.WINDOW_KEEPRATIO)
-                cv2.resizeWindow(self.window_name, *self.display_size)
+                cv2.resizeWindow(self.window_name, width, height)
                 cv2.moveWindow(self.window_name, 50, 50)  # Position window
                 self._window_created = True
+                self._current_size = target_size
             except Exception as e:
                 print(f"Warning: Could not create window: {e}")
                 self.enabled = False
+        elif self._window_created and self._current_size != target_size:
+            # Resize if size changed
+            try:
+                cv2.resizeWindow(self.window_name, width, height)
+                self._current_size = target_size
+            except Exception:
+                pass
             
     def visualize(self, image, depth_map, analysis, state_info=None, flight_info=None):
         """
@@ -108,11 +124,6 @@ class LiveDepthVisualizer:
         if not self.enabled:
             return None
         
-        # Create window on first call (deferred for Webots compatibility)
-        self._ensure_window()
-        if not self._window_created:
-            return None
-        
         # Handle grayscale images - convert to BGR
         if len(image.shape) == 2:
             image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
@@ -121,8 +132,19 @@ class LiveDepthVisualizer:
             
         h, w = image.shape[:2]
         
-        # Create visualization canvas
-        viz_h, viz_w = self.display_size[1], self.display_size[0]
+        # Determine visualization size - use input image size if not specified
+        if self.display_size is not None:
+            viz_w, viz_h = self.display_size
+        else:
+            # Use 2x width (for side-by-side layout) and same height as input
+            viz_w = w * 2
+            viz_h = h
+        
+        # Create window on first call with appropriate size
+        self._ensure_window(viz_w, viz_h)
+        if not self._window_created:
+            return None
+        
         canvas = np.zeros((viz_h, viz_w, 3), dtype=np.uint8)
         
         # Layout: 

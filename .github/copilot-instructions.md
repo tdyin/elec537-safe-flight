@@ -11,7 +11,7 @@ The system uses **depth-based vision** for obstacle detection:
 - Control: `drone/depth_controller.py` → stable avoidance and path planning
 - Fusion: `fusion/enhanced_fusion.py` → depth-aware obstacle mapping
 
-Vision mode is configured in `config.yaml` under `vision.mode: "depth"`.
+Vision mode is configured in `config/sim.yaml` (simulation) or `config/hardware.yaml` (real drone) under `vision.mode: "depth"`.
 
 ### SITL Communication Architecture
 The system uses a **TCP socket bridge** between external Python control and Webots simulation:
@@ -43,27 +43,31 @@ Key dependencies: `onnxruntime`, `opencv`, `open3d`, `cflib`, `loguru`
 ### Running SITL Tests
 Standard workflow for testing navigation:
 ```bash
-# Launch SITL with vision-based navigation (default)
-python launch.py
+# Launch SITL with vision-based navigation (recommended)
+make sim
+
+# Or use the script directly:
+python scripts/launch_sim.py
 
 # Different worlds and options
-python launch.py --world open
-python launch.py --no-gui             # Headless mode (faster)
-python launch.py --goal 6 0 1         # Set goal position
-python launch.py --viz                # Enable visualization
-python launch.py --analyze            # Analyze latest log
+make sim-open                         # Open world
+make sim-headless                     # Headless mode (faster)
+python scripts/launch_sim.py --goal 6 0 1   # Set goal position
+python scripts/launch_sim.py --viz          # Enable visualization
+python scripts/launch_sim.py --analyze      # Analyze latest log
 ```
 
-**Important**: `launch.py` is the canonical entry point for SITL. It handles Webots path detection, world file loading, and coordinated startup.
+**Important**: `Makefile` is the primary entry point. Use `make sim` for SITL simulation.
 
 ### Model Management
-Models live in `models/` and are downloaded via `scripts/download_models.py`:
+Models are downloaded via `scripts/setup.py` (or `make setup`):
 - Depth: MiDaS v2.1 Small (63.7 MB)
 
-Model paths configured in `config.yaml` under `vision.depth`.
+Model paths configured in `config/sim.yaml` or `config/hardware.yaml` under `vision.depth`.
 ### Testing
 ```bash
-pytest tests/ -v                    # Full test suite
+make test                           # Full test suite (recommended)
+pytest tests/ -v                    # Direct pytest
 python scripts/test_vision_detector.py  # Vision system only
 python scripts/test_modules.py      # Module verification
 ```
@@ -73,7 +77,9 @@ Test structure follows pytest conventions (`tests/test_*.py`, classes `Test*`, f
 ## Code Conventions
 
 ### Configuration-Driven Behavior
-**Never hardcode paths or parameters** - use `config.yaml`:
+**Never hardcode paths or parameters** - use config files:
+- `config/sim.yaml` - Simulation configuration
+- `config/hardware.yaml` - Hardware configuration (conservative settings)
 - Vision model paths: `vision.depth.model_path`
 - Navigation parameters: `drone.navigation.*`
 - Fusion weights: `fusion.depth_weight`
@@ -136,7 +142,23 @@ MiDaS outputs **inverse depth** (disparity):
 3. **Conda vs system Python**: Always activate `safe-flight` environment - system Python lacks ONNX
 4. **Webots socket binding**: If port 10020 in use, kill old Webots processes: `pkill -f webots`
 
+## Documentation Requirements
+
+⚠️ **IMPORTANT**: Always update `docs/DEVELOPMENT_LOG.md` when making essential changes:
+- New features or modules added
+- Architecture changes or refactoring
+- Bug fixes with root cause analysis
+- Configuration changes
+- Removed or deprecated code
+
+Log format: Date header, objective, changes made, rationale, impact.
+
+⚠️ **ALSO CHECK**: After making changes, review `docs/DOCUMENTATION.md` and `README.md`:
+- Only update when you find missing or inaccurate information
+- Do not rewrite sections unnecessarily
+
 ## Reference Files
 - Main documentation: `docs/DOCUMENTATION.md` (comprehensive guide)
 - Development history: `docs/DEVELOPMENT_LOG.md` (chronological decisions)
+- Hardware deployment: `docs/DEPLOYMENT_PLAN.md` (real drone flight plan)
 - Project structure: README.md lines 60-100

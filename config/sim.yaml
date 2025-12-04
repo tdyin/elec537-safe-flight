@@ -1,0 +1,127 @@
+# Simulation-specific configuration
+# Use with: python launch_sim.py --config config/sim.yaml
+mode: "simulation"
+
+# Vision Module Configuration (same for sim and hardware)
+vision:
+  mode: "depth"
+  
+  depth:
+    model_path: "models/midas_v21_small.onnx"
+    depth_scale: 1.0
+    use_gpu: false
+    model_height: 256
+    model_width: 256
+  
+  target_size: [256, 256]
+  normalize: true
+  
+  obstacle:
+    min_area: 100
+    depth_threshold: 2.5
+    critical_threshold: 0.15
+    close_threshold: 0.25
+    caution_threshold: 0.40
+    far_threshold: 0.55
+    roi_top_ratio: 0.20
+    roi_bottom_ratio: 0.70
+
+# Sensor Fusion Configuration
+fusion:
+  depth_weight: 1.0
+  confidence_threshold: 0.4
+  grid_size: [20, 20, 10]
+  grid_bounds: [5.0, 5.0, 3.0]
+
+# Drone Configuration (Simulation)
+drone:
+  interface: "webots"
+  
+  # SITL simulation settings
+  simulation:
+    host: "localhost"
+    port: 10020
+    world_file: "sim/webots/worlds/crazyflie_apartment.wbt"
+    controller: "crazyflie_sitl"
+    smoothing_alpha: 0.08
+    max_velocity: 0.30
+    max_yaw_rate: 0.6
+    warning_tilt: 18.0
+    critical_tilt: 28.0
+    stuck_detection_enabled: true
+    stuck_history_size: 20
+    stuck_threshold: 0.05
+    stuck_time_window: 3.0
+    emergency_backup_speed: -0.10
+    emergency_timeout: 2.0
+    print_interval: 10
+
+  navigation:
+    cruise_speed: 1.0
+    avoidance_speed: 0.5
+    max_speed: 2.0
+    safety_distance: 1.0
+    max_altitude: 2.0
+    min_altitude: 0.5
+    default_altitude: 0.8
+    waypoint_radius: 0.3
+    lookahead_distance: 1.0
+    zone_critical: 0.2
+    zone_close: 0.35
+    zone_caution: 0.5
+    zone_clear: 0.6
+    avoidance_duration: 1.5
+    turn_rate: 1.0
+    recovery_time: 0.5
+    crash_tilt_threshold: 45.0
+    crash_altitude_threshold: 0.1
+    warning_tilt_threshold: 25.0
+    min_flight_altitude: 0.3
+
+  path_planning:
+    enabled: true
+    planning_resolution: 0.1
+    safety_margin: 3
+    smoothness_weight: 0.4
+    diagonal_cost: 1.414
+    straight_cost: 1.0
+    replan_interval: 10
+    path_smoothing: "bezier"
+    max_deviation: 1.5
+    return_speed_ratio: 0.7
+    
+  avoidance:
+    avoidance_gain: 1.0
+    planning_horizon: 5
+    velocity_smoothing: 0.2
+    recovery_smoothing: 0.1
+    recovery_time: 1.0
+    recovery_backup_distance: 0.1
+    max_history: 5
+    cruise_speed_ratio: 0.6
+    caution_speed_ratio: 0.3
+    caution_distance_ratio: 2.0
+    detection_distance_ratio: 4.0
+    emergency_distance_ratio: 0.5
+    repulsive_gain_ratio: 1.5
+
+  safety:
+    crash_tilt_threshold: 35.0
+    warning_tilt_threshold: 25.0
+    crash_altitude_threshold: 0.50
+    min_flight_altitude: 1.0
+    position_history_size: 30
+
+  control_frequency: 50
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  log_to_file: true
+  log_directory: "sim/webots/logs"
+
+# Data Collection Configuration
+data:
+  save_detections: true
+  save_sensor_data: false
+  output_directory: "data/processed"

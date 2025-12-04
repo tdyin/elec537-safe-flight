@@ -32,13 +32,21 @@ import numpy as np
 
 # Optional imports
 try:
+    import matplotlib
+    # Use non-interactive backend if no display available
+    import os
+    if not os.environ.get('DISPLAY') and os.environ.get('MPLBACKEND') is None:
+        matplotlib.use('Agg')
     import matplotlib.pyplot as plt
     from matplotlib.patches import Rectangle, Circle, FancyArrowPatch
     from matplotlib.collections import PatchCollection
     import matplotlib.gridspec as gridspec
     MATPLOTLIB_AVAILABLE = True
+    # Check if we can show interactive plots
+    MATPLOTLIB_INTERACTIVE = matplotlib.get_backend().lower() not in ('agg', 'pdf', 'svg', 'ps', 'cairo')
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
+    MATPLOTLIB_INTERACTIVE = False
     print("Warning: matplotlib not available. Install with: pip install matplotlib")
 
 try:
@@ -49,8 +57,8 @@ except ImportError:
 
 
 def load_config():
-    """Load configuration from config.yaml."""
-    config_path = project_root / 'config.yaml'
+    """Load configuration from config/sim.yaml."""
+    config_path = project_root / 'config' / 'sim.yaml'
     if config_path.exists():
         with open(config_path, 'r') as f:
             return yaml.safe_load(f)
@@ -267,7 +275,7 @@ class PathPlanningVisualizer:
             plt.savefig(save_path, dpi=150, bbox_inches='tight')
             print(f"Saved 2D path visualization to {save_path}")
             
-        if show:
+        if show and MATPLOTLIB_INTERACTIVE:
             plt.show()
         else:
             plt.close()
@@ -379,7 +387,7 @@ class PathPlanningVisualizer:
             plt.savefig(save_path, dpi=150, bbox_inches='tight')
             print(f"Saved 3D path visualization to {save_path}")
             
-        if show:
+        if show and MATPLOTLIB_INTERACTIVE:
             plt.show()
         else:
             plt.close()
@@ -532,7 +540,7 @@ class ObstacleDetectionVisualizer:
             plt.savefig(save_path, dpi=150, bbox_inches='tight')
             print(f"Saved clearance timeline to {save_path}")
             
-        if show:
+        if show and MATPLOTLIB_INTERACTIVE:
             plt.show()
         else:
             plt.close()
@@ -629,7 +637,7 @@ class ObstacleDetectionVisualizer:
             plt.savefig(save_path, dpi=150, bbox_inches='tight')
             print(f"Saved depth visualization to {save_path}")
             
-        if show:
+        if show and MATPLOTLIB_INTERACTIVE:
             plt.show()
         else:
             plt.close()

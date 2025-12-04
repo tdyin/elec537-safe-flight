@@ -3,12 +3,17 @@
 SITL launcher for Safe Flight.
 
 Usage:
-    python launch.py                          # Default: apartment world with GUI
-    python launch.py --world open             # Different world
-    python launch.py --goal 6 0 1             # Set goal position
-    python launch.py --no-gui                 # Headless mode (faster)
-    python launch.py --viz                    # Enable visualization
-    python launch.py --analyze                # Analyze latest log file
+    python scripts/launch_sim.py                  # Default: apartment world with GUI
+    python scripts/launch_sim.py --world open     # Different world
+    python scripts/launch_sim.py --goal 6 0 1     # Set goal position
+    python scripts/launch_sim.py --no-gui         # Headless mode (faster)
+    python scripts/launch_sim.py --viz            # Enable visualization
+    python scripts/launch_sim.py --analyze        # Analyze latest log file
+    
+Or via Makefile:
+    make sim                                      # Default simulation
+    make sim-open                                 # Open world
+    make sim-headless                             # Headless mode
 """
 
 import argparse
@@ -21,10 +26,13 @@ import json
 from typing import Optional, List
 import yaml
 
+# Project root is parent of scripts/
+PROJECT_ROOT = Path(__file__).parent.parent
 
-def load_config() -> dict:
-    """Load configuration from config.yaml."""
-    config_path = Path(__file__).parent / 'config.yaml'
+
+def load_config(config_file: str = 'config/sim.yaml') -> dict:
+    """Load configuration from YAML file."""
+    config_path = PROJECT_ROOT / config_file
     if config_path.exists():
         with open(config_path) as f:
             return yaml.safe_load(f)
@@ -40,7 +48,7 @@ WORLDS = {
 
 def find_latest_log() -> Optional[Path]:
     """Find the most recent log file."""
-    log_dir = Path(__file__).parent / 'sim' / 'webots' / 'logs'
+    log_dir = PROJECT_ROOT / 'sim' / 'webots' / 'logs'
     if not log_dir.exists():
         return None
     log_files = sorted(log_dir.glob('*.log'), key=lambda p: p.stat().st_mtime, reverse=True)
@@ -51,12 +59,12 @@ def run_visualization_analysis(log_path: Path, show: bool = True):
     """Run post-flight visualization analysis."""
     print(f"\n📊 Analyzing log: {log_path.name}")
     
-    viz_script = Path(__file__).parent / 'sim' / 'webots' / 'utils' / 'viz_nav_graph.py'
+    viz_script = PROJECT_ROOT / 'sim' / 'webots' / 'utils' / 'viz_nav_graph.py'
     if not viz_script.exists():
         print("Warning: Visualization script not found")
         return
     
-    output_dir = Path(__file__).parent / 'data' / 'visualization'
+    output_dir = PROJECT_ROOT / 'data' / 'visualization'
     output_dir.mkdir(parents=True, exist_ok=True)
     
     cmd = [sys.executable, str(viz_script), '--log', str(log_path), '--output', str(output_dir)]
@@ -68,7 +76,11 @@ def run_visualization_analysis(log_path: Path, show: bool = True):
         if result.returncode == 0:
             print(f"✓ Visualizations saved to: {output_dir}")
         else:
-            print(f"Warning: Visualization failed: {result.stderr}")
+            # Show stderr if available, otherwise show stdout for debugging
+            error_msg = result.stderr.strip() or result.stdout.strip() or "Unknown error"
+            print(f"Warning: Visualization failed (exit code {result.returncode}): {error_msg}")
+    except subprocess.TimeoutExpired:
+        print("Warning: Visualization timed out")
     except Exception as e:
         print(f"Warning: Visualization error: {e}")
 
@@ -96,6 +108,8 @@ def find_webots_executable() -> Optional[str]:
         '~/Applications/Webots.app/Contents/MacOS/webots',
         '/usr/local/webots/webots',  # Linux
         '/snap/webots/current/usr/bin/webots',
+        '~/Downloads/webots/webots',  # User Downloads
+        '/opt/webots/webots',
     ]
     
     for path in paths:
@@ -120,7 +134,7 @@ def launch_webots(world_file: str, no_gui: bool = False,
         waypoints: List of waypoints [[x,y,z], ...] for path navigation
         goal: Single goal position [x, y, z]
         enable_viz: Enable real-time visualization
-        config: Configuration dict from config.yaml
+        config: Configuration dict from config/sim.yaml
         
     Returns:
         Subprocess handle for Webots
@@ -152,7 +166,7 @@ def launch_webots(world_file: str, no_gui: bool = False,
     env['WORLD_NAME'] = Path(world_file).stem.replace('crazyflie_', '')
     
     # Set depth model path
-    depth_model = Path(__file__).parent / 'models' / 'midas_v21_small.onnx'
+    depth_model = PROJECT_ROOT / 'models' / 'midas_v21_small.onnx'
     if depth_model.exists():
         env['DEPTH_MODEL_PATH'] = str(depth_model)
     
@@ -163,7 +177,7 @@ def launch_webots(world_file: str, no_gui: bool = False,
     if enable_viz:
         env['ENABLE_NAV_VIZ'] = '1'
     
-    # Pass navigation config from config.yaml
+    # Pass navigation config from config file
     if config:
         nav_config = config.get('drone', {}).get('navigation', {})
         sim_config = config.get('drone', {}).get('simulation', {})
@@ -225,13 +239,14 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=f"""
 Examples:
-  python launch.py                            # Default: apartment world
-  python launch.py --world open               # Open world
-  python launch.py --goal 6 0 1               # Set goal position
-  python launch.py --waypoints "[[2,0,1],[4,1,1]]"  # Set waypoints
-  python launch.py --no-gui                   # Headless mode (faster)
-  python launch.py --viz                      # Enable visualization
-  python launch.py --analyze                  # Analyze latest log
+  make sim                                    # Recommended: use Makefile
+  python scripts/launch_sim.py                # Default: apartment world
+  python scripts/launch_sim.py --world open   # Open world
+  python scripts/launch_sim.py --goal 6 0 1   # Set goal position
+  python scripts/launch_sim.py --waypoints "[[2,0,1],[4,1,1]]"  # Set waypoints
+  python scripts/launch_sim.py --no-gui       # Headless mode (faster)
+  python scripts/launch_sim.py --viz          # Enable visualization
+  python scripts/launch_sim.py --analyze      # Analyze latest log
 
 Available worlds: {', '.join(WORLDS.keys())}
         """

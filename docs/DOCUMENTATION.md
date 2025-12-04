@@ -2,8 +2,8 @@
 
 **Vision-Based Obstacle Avoidance for Crazyflie Drone**
 
-Last Updated: December 2, 2025  
-Project Status: ✅ Fully Functional with Depth-Based Navigation
+Last Updated: December 3, 2025  
+Project Status: ✅ SITL Functional | 🔄 Hardware Deployment In Progress
 
 ---
 
@@ -14,8 +14,9 @@ Project Status: ✅ Fully Functional with Depth-Based Navigation
 3. [Navigation System](#navigation-system)
 4. [Vision System](#vision-system)
 5. [SITL Development](#sitl-development)
-6. [Configuration](#configuration)
-7. [Troubleshooting](#troubleshooting)
+6. [Hardware Deployment](#hardware-deployment)
+7. [Configuration](#configuration)
+8. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -27,31 +28,36 @@ Project Status: ✅ Fully Functional with Depth-Based Navigation
 conda env create -f environment.yaml
 conda activate safe-flight
 
-# Download models
-python scripts/download_models.py
+# Setup project (download models, verify dependencies)
+make setup
 ```
 
 ### Run SITL Simulation
 ```bash
-# Launch with vision-based navigation
-python launch.py
+# Launch with vision-based navigation (recommended)
+make sim
+
+# Or use the script directly:
+python scripts/launch_sim.py
 
 # With specific goal
-python launch.py --goal 6 0 1
+python scripts/launch_sim.py --goal 6 0 1
 
 # With custom waypoints
-python launch.py --waypoints "[[2,0,1],[4,1,1],[6,0,1]]"
+python scripts/launch_sim.py --waypoints "[[2,0,1],[4,1,1],[6,0,1]]"
 
 # With visualization
-python launch.py --viz
+make sim-viz
 
 # Different worlds
-python launch.py --world open
-python launch.py --no-gui  # Headless mode
+make sim-open
+make sim-headless  # No GUI (faster)
 ```
 
 ### Run Tests
 ```bash
+make test
+# or
 pytest tests/ -v
 ```
 
@@ -184,9 +190,47 @@ The system uses A* path planning with Bezier smoothing:
 
 ---
 
+## Hardware Deployment
+
+> **Note:** Hardware flight support is under development. See `docs/DEPLOYMENT_PLAN.md` for full details.
+
+### Target Hardware
+
+| Component | Model | Purpose |
+|-----------|-------|---------|
+| Drone | Crazyflie 2.1 | Flight platform |
+| Positioning | Flow Deck v2 | Relative position estimation |
+| Camera | AI Deck | Vision input for depth estimation |
+| Radio | Crazyradio PA | Communication link |
+
+### Hardware vs Simulation
+
+| Feature | Simulation | Hardware |
+|---------|------------|----------|
+| Config | `config/sim.yaml` | `config/hardware.yaml` |
+| Launcher | `scripts/launch_sim.py` | `scripts/launch_hardware.py` |
+| Make target | `make sim` | `make hardware` |
+| Interface | `WebotsInterface` | `CrazyflieInterface` |
+| Camera | Webots camera | AI Deck WiFi stream |
+| Position | Ground truth | Flow Deck estimation |
+| Control | Velocity commands | MotionCommander |
+
+### Hardware Safety Features
+
+- Battery monitoring (auto-land at 3.3V)
+- Geofence (3m radius from start)
+- Tilt limit (40° emergency stop)
+- Communication timeout handling
+
+---
+
 ## Configuration
 
-All parameters are in `config.yaml`. Key sections:
+Configuration is split by environment:
+- `config/sim.yaml` - Simulation settings
+- `config/hardware.yaml` - Hardware settings (conservative)
+
+Key sections:
 
 ### Vision
 ```yaml
@@ -247,14 +291,14 @@ pip install -e .
 
 ### Model Not Found
 ```bash
-python scripts/download_models.py
+make setup-models
 ls -lh models/
 ```
 
 ### Low FPS
 - Increase `vision_interval` in controller
 - Use MobileNetV3 instead of ResNet50
-- Enable headless mode: `python launch.py --no-gui`
+- Enable headless mode: `make sim-headless`
 
 ### Environment Issues
 ```bash
@@ -270,21 +314,38 @@ conda activate safe-flight
 
 ```
 elec537-safe-flight/
-├── config.yaml              # All configuration
-├── launch.py                # SITL launcher
+├── Makefile                 # Primary entry point for all commands
+├── config/                  # Configuration files
+│   ├── sim.yaml            # Simulation config
+│   └── hardware.yaml       # Hardware config
 ├── environment.yaml         # Conda environment
 ├── models/                  # ONNX models
 ├── src/                     # Main Python code
-│   ├── drone/              # Interfaces & controllers
+│   ├── core/               # Shared library (base interface, types, safety)
+│   ├── hardware/           # Hardware interfaces (cflib, AI Deck)
+│   ├── sim/                # Simulation code (bridge, webots_interface)
+│   ├── drone/              # Controllers (depth_controller)
 │   ├── vision/             # Detection & depth
 │   ├── planning/           # Path planning
 │   └── fusion/             # Sensor fusion
-├── sim/webots/             # Simulation
+├── scripts/                 # Launch scripts & utilities
+│   ├── launch_sim.py       # SITL launcher
+│   ├── launch_hardware.py  # Hardware launcher
+│   ├── setup.py            # Environment & model setup
+│   └── cleanup.py          # Storage cleanup
+├── sim/webots/             # Webots simulation
 │   ├── controllers/        # Webots controllers
 │   ├── worlds/             # Environment files
 │   └── logs/               # Flight logs
 ├── tests/                   # Unit tests
-└── scripts/                 # Utilities
+├── data/                    # Generated data
+│   ├── raw/                # Raw flight data
+│   ├── processed/          # Processed data
+│   └── visualization/      # Visualization outputs
+└── docs/                    # Documentation
+    ├── DOCUMENTATION.md    # This file
+    ├── DEVELOPMENT_LOG.md  # Development history
+    └── DEPLOYMENT_PLAN.md  # Hardware deployment plan
 ```
 
 ---
@@ -293,6 +354,8 @@ elec537-safe-flight/
 
 - **Webots**: https://cyberbotics.com/doc/guide/index
 - **Crazyflie**: https://www.bitcraze.io/documentation/
+- **cflib**: https://www.bitcraze.io/documentation/repository/crazyflie-lib-python/master/
+- **AI Deck**: https://www.bitcraze.io/documentation/repository/AIdeck_examples/master/
 - **MiDaS**: https://github.com/isl-org/MiDaS
 - **ONNX Runtime**: https://onnxruntime.ai/docs/
 

@@ -56,7 +56,7 @@ class DepthNavigationController:
             replan_interval: Replan path every N frames
             path_smoothing: Smoothing method ('bezier', 'spline', or 'none')
             use_stable_avoidance: Use StableAvoidanceController for improved stability
-            config: Optional configuration dictionary from config.yaml
+            config: Optional configuration dictionary from config/sim.yaml or config/hardware.yaml
         """
         # Load config values if provided
         drone_config = config.get('drone', {}) if config else {}
@@ -82,6 +82,8 @@ class DepthNavigationController:
         self.crash_detection_enabled = False
         self.takeoff_complete = False
         self.min_flight_altitude = nav_config.get('min_flight_altitude', 0.3)
+        self.takeoff_grace_period = nav_config.get('takeoff_grace_period', 2.0)  # seconds
+        self.takeoff_time = None  # Time when takeoff was initiated
         
         # History for temporal smoothing (from config)
         self.velocity_history = []
@@ -286,10 +288,29 @@ class DepthNavigationController:
                 if valid_depths.size == 0:
                     continue
                 
-                # MiDaS outputs inverse depth, convert to distance
-                median_inverse_depth = np.median(valid_depths)
-                distance = 5.0 / (median_inverse_depth + 0.1)  # Approximate conversion
-                distance = np.clip(distance, 0.2, 10.0)
+                # MiDaS outputs relative inverse depth (higher = closer)
+                # Normalize the depth values first
+                depth_min = depth_map.min()
+                depth_max = depth_map.max()
+                depth_range = depth_max - depth_min + 1e-6
+                
+                median_raw = np.median(valid_depths)
+                normalized_depth = (median_raw - depth_min) / depth_range  # 0-1, higher = closer
+                
+                # Convert normalized inverse depth to distance
+                # normalized_depth near 1.0 = very close, near 0.0 = far away
+                # Use exponential mapping for better distance estimation
+                # Calibration: depth=0.9 -> ~0.5m, depth=0.5 -> ~2m, depth=0.2 -> ~5m
+                if normalized_depth > 0.95:
+                    distance = 0.3  # Very close
+                elif normalized_depth > 0.1:
+                    # Inverse relationship with floor
+                    distance = 0.5 / (normalized_depth + 0.05)
+                    distance = np.clip(distance, 0.5, 10.0)
+                else:
+                    distance = 10.0  # Far away
+                
+                logger.debug(f"Depth conversion: raw={median_raw:.2f}, norm={normalized_depth:.2f}, dist={distance:.2f}m")
                 
                 # Project to 3D (body frame: x=forward, y=left, z=up)
                 horizontal_offset = (cx_pixel - cx) / fx
@@ -600,17 +621,44 @@ class DepthNavigationController:
                    pitch: float,
                    altitude: float,
                    velocity: Optional[Tuple[float, float, float]] = None) -> bool:
-        """Check if drone has crashed."""
-        if not self.takeoff_complete:
-            if altitude > self.min_flight_altitude:
-                self.takeoff_complete = True
-                self.crash_detection_enabled = True
-                logger.info(f"Takeoff complete - Crash detection enabled")
-            return False
+        """Check if drone has crashed.
         
+        Crash detection is only active after:
+        1. enable_crash_detection() has been called
+        2. The takeoff grace period has elapsed
+        3. The drone has reached min_flight_altitude
+        
+        This prevents false positives during takeoff.
+        """
+        import time
+        
+        # Not yet enabled
         if not self.crash_detection_enabled:
             return False
         
+        # Check if we're still in the takeoff grace period
+        if self.takeoff_time is not None:
+            elapsed = time.time() - self.takeoff_time
+            if elapsed < self.takeoff_grace_period:
+                # During grace period, only check for extreme tilt (actual crash)
+                # but not low altitude (which is normal during takeoff)
+                if abs(roll) > self.crash_tilt_threshold * 1.2 or abs(pitch) > self.crash_tilt_threshold * 1.2:
+                    if not self.crashed:
+                        logger.error(f"Crash during takeoff: Extreme tilt (roll={np.rad2deg(roll):.1f}°, "
+                                   f"pitch={np.rad2deg(pitch):.1f}°)")
+                        self.crashed = True
+                    return True
+                # Don't trigger crash for low altitude during grace period
+                return False
+        
+        # Mark takeoff complete when we reach min flight altitude
+        if not self.takeoff_complete:
+            if altitude > self.min_flight_altitude:
+                self.takeoff_complete = True
+                logger.info(f"Takeoff complete - Full crash detection enabled (alt={altitude:.2f}m)")
+            return False
+        
+        # Full crash detection after takeoff is complete
         if abs(roll) > self.crash_tilt_threshold or abs(pitch) > self.crash_tilt_threshold:
             if not self.crashed:
                 logger.error(f"Crash: Extreme tilt (roll={np.rad2deg(roll):.1f}°, "
@@ -629,28 +677,35 @@ class DepthNavigationController:
     def reset_crash_state(self):
         """Reset crash detection state."""
         self.crashed = False
+        self.takeoff_complete = False
+        self.takeoff_time = None
         if self.use_stable_avoidance and hasattr(self, 'stable_avoidance'):
             self.stable_avoidance.reset()
         logger.info("Crash state reset")
     
     def enable_crash_detection(self):
-        """Manually enable crash detection."""
+        """Manually enable crash detection.
+        
+        Starts the takeoff grace period during which low altitude
+        won't trigger a crash (to allow for takeoff stabilization).
+        """
+        import time
         self.crash_detection_enabled = True
-        self.takeoff_complete = True
-        logger.info("Crash detection enabled")
+        self.takeoff_time = time.time()
+        logger.info(f"Crash detection enabled with {self.takeoff_grace_period}s grace period")
     
     def get_avoidance_state(self) -> Dict:
         """Get current avoidance controller state and statistics."""
         if self.use_stable_avoidance and hasattr(self, 'stable_avoidance'):
             stats = self.stable_avoidance.get_statistics()
-            stats['path_index'] = self.path_index if self.current_path is not None else 0
-            stats['path_length'] = len(self.current_path) if self.current_path is not None else 0
+            stats['path_index'] = getattr(self, 'path_index', 0) if getattr(self, 'current_path', None) is not None else 0
+            stats['path_length'] = len(self.current_path) if getattr(self, 'current_path', None) is not None else 0
             return stats
         else:
             return {
                 'state': 'legacy',
-                'path_index': self.path_index if hasattr(self, 'path_index') else 0,
-                'path_length': len(self.current_path) if self.current_path is not None else 0
+                'path_index': getattr(self, 'path_index', 0),
+                'path_length': len(self.current_path) if getattr(self, 'current_path', None) is not None else 0
             }
     
     def is_in_avoidance_mode(self) -> bool:

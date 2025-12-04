@@ -186,7 +186,7 @@ class WebotsController:
         enable_nav_viz = os.environ.get('ENABLE_NAV_VIZ', '').lower() in ('1', 'true', 'yes')
         save_nav_frames = os.environ.get('SAVE_NAV_FRAMES', '').lower() in ('1', 'true', 'yes')
         
-        # Read navigation parameters from environment (set by launch.py from config.yaml)
+        # Read navigation parameters from environment (set by launch_sim.py from config/sim.yaml)
         cruise_speed = float(os.environ.get('NAV_CRUISE_SPEED', '0.25'))
         avoidance_speed = float(os.environ.get('NAV_AVOIDANCE_SPEED', '0.18'))
         turn_rate = float(os.environ.get('NAV_TURN_RATE', '1.0'))

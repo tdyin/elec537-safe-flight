@@ -1,0 +1,148 @@
+# Hardware-specific configuration
+# Use with: python launch_hardware.py --config config/hardware.yaml
+mode: "hardware"
+
+# Vision Module Configuration
+vision:
+  mode: "depth"
+  
+  depth:
+    model_path: "models/midas_v21_small.onnx"
+    depth_scale: 1.0
+    use_gpu: false  # Laptop CPU inference
+    model_height: 256
+    model_width: 256
+  
+  target_size: [256, 256]
+  normalize: true
+  
+  obstacle:
+    # More conservative thresholds for real flight
+    min_area: 100
+    depth_threshold: 2.5
+    critical_threshold: 0.20
+    close_threshold: 0.30
+    caution_threshold: 0.45
+    far_threshold: 0.55
+    roi_top_ratio: 0.20
+    roi_bottom_ratio: 0.70
+
+# Sensor Fusion Configuration
+fusion:
+  depth_weight: 1.0
+  confidence_threshold: 0.4
+  grid_size: [20, 20, 10]
+  grid_bounds: [5.0, 5.0, 3.0]
+
+# Drone Configuration (Hardware)
+drone:
+  interface: "crazyflie"
+  uri: "radio://0/80/2M/E7E7E7E7E7"
+  
+  # Hardware requirements
+  hardware:
+    flow_deck_required: true
+    multiranger_required: false  # Optional
+    ai_deck_required: true
+    arming_required: true
+  
+  # AI Deck camera settings
+  ai_deck:
+    enabled: true
+    ip: "10.0.0.239"  # Station mode (connected to local network)
+    port: 5000
+    encoding: "jpeg"
+    timeout: 5.0
+    frame_rate: 15
+
+  # cflib logging rates
+  logging:
+    stabilizer_rate_ms: 20
+    state_estimate_rate_ms: 20
+    battery_rate_ms: 500
+
+  navigation:
+    # Conservative speeds for real hardware
+    cruise_speed: 0.3
+    avoidance_speed: 0.15
+    max_speed: 0.4
+    safety_distance: 1.0
+    max_altitude: 1.5
+    min_altitude: 0.3
+    default_altitude: 0.5
+    
+    # Forward-only mode for initial testing
+    forward_only: true
+    
+    waypoint_radius: 0.3
+    lookahead_distance: 0.8
+    zone_critical: 0.25
+    zone_close: 0.40
+    zone_caution: 0.55
+    zone_clear: 0.65
+    avoidance_duration: 2.0
+    turn_rate: 0.8
+    recovery_time: 1.0
+    crash_tilt_threshold: 40.0
+    crash_altitude_threshold: 0.15
+    warning_tilt_threshold: 20.0
+    min_flight_altitude: 0.3
+    takeoff_grace_period: 2.0  # Seconds to wait after takeoff before full crash detection
+
+  path_planning:
+    enabled: false  # Disable for initial hardware tests
+    planning_resolution: 0.1
+    safety_margin: 4
+    smoothness_weight: 0.5
+    diagonal_cost: 1.414
+    straight_cost: 1.0
+    replan_interval: 15
+    path_smoothing: "bezier"
+    max_deviation: 1.0
+    return_speed_ratio: 0.5
+
+  avoidance:
+    avoidance_gain: 0.8
+    planning_horizon: 3
+    velocity_smoothing: 0.15
+    recovery_smoothing: 0.08
+    recovery_time: 1.0  # Faster recovery for real hardware
+    recovery_backup_distance: 0.15
+    max_history: 5
+    cruise_speed_ratio: 0.6  # Higher cruise speed ratio
+    caution_speed_ratio: 0.35  # Allow more speed in caution
+    caution_distance_ratio: 1.8  # Reduced from 2.5
+    detection_distance_ratio: 3.5  # Reduced from 5.0
+    emergency_distance_ratio: 0.4  # Reduced emergency threshold (0.4m instead of 0.6m)
+    repulsive_gain_ratio: 1.0  # Reduced repulsive force
+
+  safety:
+    battery_min_voltage: 3.3
+    battery_warning_voltage: 3.5
+    geofence_radius: 3.0
+    geofence_height: 2.0
+    crash_tilt_threshold: 40.0
+    warning_tilt_threshold: 20.0
+    crash_altitude_threshold: 0.15
+    min_flight_altitude: 0.3
+    comm_timeout: 1.0
+    position_history_size: 30
+
+  flight:
+    takeoff_height: 0.5
+    takeoff_velocity: 0.3
+    land_velocity: 0.2
+
+  control_frequency: 50
+
+# Logging Configuration
+logging:
+  level: "DEBUG"  # More verbose for hardware
+  log_to_file: true
+  log_directory: "logs/hardware"
+
+# Data Collection Configuration
+data:
+  save_detections: true
+  save_sensor_data: true
+  output_directory: "data/hardware"

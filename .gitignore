@@ -6,6 +6,7 @@ __pycache__/
 *.so
 .Python
 build/
+BUILD/
 develop-eggs/
 dist/
 downloads/
@@ -82,3 +83,6 @@ htmlcov/
 tmp/
 temp/
 *.tmp
+
+# Crazyflie cflib cache
+cache/
