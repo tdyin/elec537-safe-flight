@@ -1,7 +1,12 @@
 """AI Deck camera streaming over WiFi.
 
 This module provides camera image streaming from the Crazyflie AI Deck
-over its WiFi connection.
+over its WiFi connection using the CPX (Crazyflie Packet eXchange) protocol.
+
+Protocol details (from Bitcraze wifi-img-streamer):
+- Packet header: 4 bytes <HBB (length, routing, function)
+- Image header: magic(0xBC), width, height, depth, format, size
+- Image data: chunked with packet headers
 """
 
 import socket
@@ -20,11 +25,17 @@ except ImportError:
     logger.warning("OpenCV not available for image decoding")
 
 
+# Image format constants
+FORMAT_RAW = 0
+FORMAT_JPEG = 1
+MAGIC_BYTE = 0xBC
+
+
 class AIdeckCamera:
     """WiFi camera streaming from AI Deck.
     
     Connects to the AI Deck's WiFi access point and receives
-    JPEG-encoded camera frames over TCP.
+    camera frames over TCP using the CPX protocol.
     """
     
     def __init__(self, 
@@ -51,6 +62,11 @@ class AIdeckCamera:
         self._frame_lock = threading.Lock()
         self._frame_count = 0
         self._receiver_thread: Optional[threading.Thread] = None
+        
+        # Image info from last frame
+        self._width = 0
+        self._height = 0
+        self._format = FORMAT_JPEG
         
         # Stats
         self._start_time = 0.0
@@ -126,15 +142,24 @@ class AIdeckCamera:
     def fps(self) -> float:
         """Get current frame rate."""
         elapsed = time.time() - self._start_time
-        if elapsed > 0:
+        if elapsed > 0 and self._frame_count > 0:
             return self._frame_count / elapsed
         return 0.0
+    
+    @property
+    def resolution(self) -> tuple:
+        """Get image resolution (width, height)."""
+        return (self._width, self._height)
     
     def _receive_loop(self) -> None:
         """Background thread for receiving camera frames."""
         if not CV2_AVAILABLE:
             logger.error("[AIDECK] OpenCV required for frame decoding")
             return
+        
+        logger.debug("[AIDECK] Receiver thread started")
+        consecutive_errors = 0
+        max_consecutive_errors = 5
         
         while self.running and self.connected:
             try:
@@ -144,18 +169,95 @@ class AIdeckCamera:
                         self._latest_frame = frame
                     self._frame_count += 1
                     self._last_frame_time = time.time()
+                    consecutive_errors = 0  # Reset on success
+                    
+                    if self._frame_count == 1:
+                        logger.info(f"[AIDECK] First frame received: {self._width}x{self._height}")
+                else:
+                    consecutive_errors += 1
+                    if consecutive_errors >= max_consecutive_errors:
+                        # Try to resync by reconnecting
+                        logger.warning("[AIDECK] Too many errors, attempting resync...")
+                        self._resync_stream()
+                        consecutive_errors = 0
                     
             except socket.timeout:
+                logger.debug("[AIDECK] Socket timeout in receive loop")
                 continue
             except Exception as e:
                 if self.running:
                     logger.error(f"[AIDECK] Receive error: {e}")
+                    import traceback
+                    logger.debug(traceback.format_exc())
                 break
         
         logger.debug("[AIDECK] Receiver thread exiting")
     
+    def _resync_stream(self) -> None:
+        """Attempt to resync the stream by finding next valid frame header.
+        
+        Scans for a valid packet: 4-byte header with length=13 followed by magic 0xBC.
+        """
+        if not self.socket:
+            return
+        
+        logger.debug("[AIDECK] Attempting stream resync...")
+        
+        try:
+            buffer = bytearray()
+            max_scan = 50000  # Max bytes to scan
+            scanned = 0
+            
+            while scanned < max_scan:
+                # Read more data
+                chunk = self.socket.recv(1024)
+                if not chunk:
+                    break
+                buffer.extend(chunk)
+                scanned += len(chunk)
+                
+                # Look for valid packet header pattern
+                i = 0
+                while i < len(buffer) - 5:
+                    length = struct.unpack('<H', buffer[i:i+2])[0]
+                    # Image header packet is 13 bytes, magic is at offset 4
+                    if length == 13 and len(buffer) > i + 4:
+                        if buffer[i+4] == MAGIC_BYTE:
+                            # Found! Discard everything before
+                            del buffer[:i]
+                            logger.debug(f"[AIDECK] Resync found valid packet after {scanned} bytes")
+                            return
+                    i += 1
+                
+                # Keep last few bytes
+                if len(buffer) > 10:
+                    del buffer[:-10]
+                    
+        except Exception as e:
+            logger.debug(f"[AIDECK] Resync error: {e}")
+    
+    def _rx_bytes(self, size: int) -> bytearray:
+        """Receive exactly size bytes from socket.
+        
+        Args:
+            size: Number of bytes to receive
+            
+        Returns:
+            Received bytes as bytearray
+            
+        Raises:
+            Exception if socket error or disconnect
+        """
+        data = bytearray()
+        while len(data) < size:
+            chunk = self.socket.recv(size - len(data))
+            if not chunk:
+                raise ConnectionError("Socket closed")
+            data.extend(chunk)
+        return data
+    
     def _receive_frame(self) -> Optional[np.ndarray]:
-        """Receive and decode a single frame.
+        """Receive and decode a single frame using CPX protocol.
         
         Returns:
             Decoded frame as numpy array, or None on error
@@ -163,53 +265,74 @@ class AIdeckCamera:
         if not self.socket:
             return None
         
-        # Read frame size header (4 bytes, big-endian uint32)
-        header = self._recv_exact(4)
-        if not header:
-            return None
-        
-        frame_size = struct.unpack('>I', header)[0]
-        
-        if frame_size <= 0 or frame_size > 1000000:  # Sanity check
-            logger.warning(f"[AIDECK] Invalid frame size: {frame_size}")
-            return None
-        
-        # Read JPEG data
-        jpeg_data = self._recv_exact(frame_size)
-        if not jpeg_data:
-            return None
-        
-        # Decode JPEG
         try:
-            nparr = np.frombuffer(jpeg_data, np.uint8)
-            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            return frame
-        except Exception as e:
-            logger.warning(f"[AIDECK] Decode error: {e}")
-            return None
-    
-    def _recv_exact(self, size: int) -> Optional[bytes]:
-        """Receive exactly size bytes from socket.
-        
-        Args:
-            size: Number of bytes to receive
+            # Read packet info header (4 bytes)
+            # Format: <HBB = length (uint16), routing (uint8), function (uint8)
+            packet_info = self._rx_bytes(4)
+            length, routing, function = struct.unpack('<HBB', packet_info)
             
-        Returns:
-            Received bytes, or None on error
-        """
-        data = b''
-        while len(data) < size:
-            remaining = size - len(data)
-            try:
-                chunk = self.socket.recv(remaining)
-                if not chunk:
+            # Read image header (length - 2 bytes, since length includes routing+function)
+            img_header = self._rx_bytes(length - 2)
+            
+            # Parse image header (11 bytes, packed struct)
+            # Format: <BHHBBI = magic(1), width(2), height(2), depth(1), format(1), size(4)
+            if len(img_header) < 11:
+                logger.warning(f"[AIDECK] Image header too short: {len(img_header)}")
+                return None
+            
+            magic, width, height, depth, img_format, img_size = struct.unpack('<BHHBBI', img_header[:11])
+            
+            # Verify magic byte
+            if magic != MAGIC_BYTE:
+                logger.warning(f"[AIDECK] Invalid magic byte: 0x{magic:02X} (expected 0x{MAGIC_BYTE:02X})")
+                return None
+            
+            self._width = width
+            self._height = height
+            self._format = img_format
+            
+            # Receive image data in chunks
+            img_stream = bytearray()
+            while len(img_stream) < img_size:
+                # Read chunk header
+                chunk_info = self._rx_bytes(4)
+                chunk_length, chunk_dst, chunk_src = struct.unpack('<HBB', chunk_info)
+                
+                # Read chunk data
+                chunk_data = self._rx_bytes(chunk_length - 2)
+                img_stream.extend(chunk_data)
+            
+            # Decode image based on format
+            if img_format == FORMAT_RAW:
+                # Raw Bayer image
+                bayer_img = np.frombuffer(img_stream, dtype=np.uint8)
+                bayer_img = bayer_img.reshape((height, width))
+                # Convert Bayer to BGR
+                frame = cv2.cvtColor(bayer_img, cv2.COLOR_BayerBG2BGR)
+                return frame
+                
+            elif img_format == FORMAT_JPEG:
+                # JPEG image
+                nparr = np.frombuffer(img_stream, np.uint8)
+                frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                if frame is None:
+                    logger.warning("[AIDECK] Failed to decode JPEG")
                     return None
-                data += chunk
-            except socket.timeout:
+                return frame
+                
+            else:
+                logger.warning(f"[AIDECK] Unknown image format: {img_format}")
                 return None
-            except Exception:
-                return None
-        return data
+                
+        except socket.timeout:
+            return None
+        except ConnectionError:
+            logger.warning("[AIDECK] Connection closed")
+            self.connected = False
+            return None
+        except Exception as e:
+            logger.warning(f"[AIDECK] Frame decode error: {e}")
+            return None
     
     def __enter__(self):
         """Context manager entry."""

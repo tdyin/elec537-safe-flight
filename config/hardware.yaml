@@ -49,7 +49,7 @@ drone:
   # AI Deck camera settings
   ai_deck:
     enabled: true
-    ip: "192.168.4.1"
+    ip: "10.0.0.239"  # Station mode (connected to local network)
     port: 5000
     encoding: "jpeg"
     timeout: 5.0
