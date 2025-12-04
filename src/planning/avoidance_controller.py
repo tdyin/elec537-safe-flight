@@ -363,15 +363,23 @@ class StableAvoidanceController:
                 logger.info("Transitioning from EMERGENCY to RECOVERY")
                 
         elif self.state == AvoidanceState.RECOVERY:
-            # Recover gradually
+            # Recover gradually - more lenient exit conditions
             if min_obstacle_distance > self.config.safety_distance:
                 self.state = AvoidanceState.NORMAL
                 self.state_timer = 0.0
                 logger.info("Recovered to NORMAL state")
             elif self.state_timer >= self.config.recovery_time:
+                # After recovery_time, allow transition even with closer obstacles
                 if min_obstacle_distance > self.config.emergency_distance:
                     self.state = AvoidanceState.CAUTION
                     self.state_timer = 0.0
+                    logger.info(f"Recovery timeout - transitioning to CAUTION (dist={min_obstacle_distance:.2f}m)")
+            elif self.state_timer >= self.config.recovery_time * 0.5:
+                # Allow early transition to AVOIDANCE if obstacle is not too close
+                if min_obstacle_distance > self.config.emergency_distance * 1.5:
+                    self.state = AvoidanceState.AVOIDANCE
+                    self.state_timer = 0.0
+                    logger.info(f"Early recovery - transitioning to AVOIDANCE (dist={min_obstacle_distance:.2f}m)")
                     
         elif min_obstacle_distance < self.config.emergency_distance:
             self.state = AvoidanceState.EMERGENCY

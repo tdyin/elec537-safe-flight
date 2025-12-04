@@ -105,15 +105,15 @@ drone:
     planning_horizon: 3
     velocity_smoothing: 0.15
     recovery_smoothing: 0.08
-    recovery_time: 1.5
+    recovery_time: 1.0  # Faster recovery for real hardware
     recovery_backup_distance: 0.15
     max_history: 5
-    cruise_speed_ratio: 0.5
-    caution_speed_ratio: 0.25
-    caution_distance_ratio: 2.5
-    detection_distance_ratio: 5.0
-    emergency_distance_ratio: 0.6
-    repulsive_gain_ratio: 1.2
+    cruise_speed_ratio: 0.6  # Higher cruise speed ratio
+    caution_speed_ratio: 0.35  # Allow more speed in caution
+    caution_distance_ratio: 1.8  # Reduced from 2.5
+    detection_distance_ratio: 3.5  # Reduced from 5.0
+    emergency_distance_ratio: 0.4  # Reduced emergency threshold (0.4m instead of 0.6m)
+    repulsive_gain_ratio: 1.0  # Reduced repulsive force
 
   safety:
     battery_min_voltage: 3.3

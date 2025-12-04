@@ -286,10 +286,29 @@ class DepthNavigationController:
                 if valid_depths.size == 0:
                     continue
                 
-                # MiDaS outputs inverse depth, convert to distance
-                median_inverse_depth = np.median(valid_depths)
-                distance = 5.0 / (median_inverse_depth + 0.1)  # Approximate conversion
-                distance = np.clip(distance, 0.2, 10.0)
+                # MiDaS outputs relative inverse depth (higher = closer)
+                # Normalize the depth values first
+                depth_min = depth_map.min()
+                depth_max = depth_map.max()
+                depth_range = depth_max - depth_min + 1e-6
+                
+                median_raw = np.median(valid_depths)
+                normalized_depth = (median_raw - depth_min) / depth_range  # 0-1, higher = closer
+                
+                # Convert normalized inverse depth to distance
+                # normalized_depth near 1.0 = very close, near 0.0 = far away
+                # Use exponential mapping for better distance estimation
+                # Calibration: depth=0.9 -> ~0.5m, depth=0.5 -> ~2m, depth=0.2 -> ~5m
+                if normalized_depth > 0.95:
+                    distance = 0.3  # Very close
+                elif normalized_depth > 0.1:
+                    # Inverse relationship with floor
+                    distance = 0.5 / (normalized_depth + 0.05)
+                    distance = np.clip(distance, 0.5, 10.0)
+                else:
+                    distance = 10.0  # Far away
+                
+                logger.debug(f"Depth conversion: raw={median_raw:.2f}, norm={normalized_depth:.2f}, dist={distance:.2f}m")
                 
                 # Project to 3D (body frame: x=forward, y=left, z=up)
                 horizontal_offset = (cx_pixel - cx) / fx
@@ -643,14 +662,14 @@ class DepthNavigationController:
         """Get current avoidance controller state and statistics."""
         if self.use_stable_avoidance and hasattr(self, 'stable_avoidance'):
             stats = self.stable_avoidance.get_statistics()
-            stats['path_index'] = self.path_index if self.current_path is not None else 0
-            stats['path_length'] = len(self.current_path) if self.current_path is not None else 0
+            stats['path_index'] = getattr(self, 'path_index', 0) if getattr(self, 'current_path', None) is not None else 0
+            stats['path_length'] = len(self.current_path) if getattr(self, 'current_path', None) is not None else 0
             return stats
         else:
             return {
                 'state': 'legacy',
-                'path_index': self.path_index if hasattr(self, 'path_index') else 0,
-                'path_length': len(self.current_path) if self.current_path is not None else 0
+                'path_index': getattr(self, 'path_index', 0),
+                'path_length': len(self.current_path) if getattr(self, 'current_path', None) is not None else 0
             }
     
     def is_in_avoidance_mode(self) -> bool:

@@ -104,23 +104,28 @@ sim-custom:
 # Hardware
 #------------------------------------------------------------------------------
 
-hardware:
+fly:
 	@echo "$(BLUE)Launching hardware flight...$(NC)"
 	@echo "$(YELLOW)⚠️  Ensure safety precautions are in place!$(NC)"
-	$(PYTHON) $(SCRIPTS_DIR)/launch_hardware.py
+	$(PYTHON) $(SCRIPTS_DIR)/launch_hardware.py --viz
 
-hardware-hover:
+fly-30:
+	@echo "$(BLUE)Launching 30-second hardware flight...$(NC)"
+	@echo "$(YELLOW)⚠️  Ensure safety precautions are in place!$(NC)"
+	$(PYTHON) $(SCRIPTS_DIR)/launch_hardware.py --max-duration 30 --viz
+
+fly-hover:
 	@echo "$(BLUE)Launching hover test (no vision)...$(NC)"
 	@echo "$(YELLOW)⚠️  Ensure safety precautions are in place!$(NC)"
-	$(PYTHON) $(SCRIPTS_DIR)/launch_hardware.py --hover --duration 10
+	$(PYTHON) $(SCRIPTS_DIR)/launch_hardware.py --hover --max-duration 10
 
 preflight:
 	@echo "$(BLUE)Running preflight checks...$(NC)"
 	$(PYTHON) $(SCRIPTS_DIR)/launch_hardware.py --preflight
 
 # Custom hardware launch with arguments
-# Usage: make hardware-custom ARGS="--uri radio://0/80/2M/E7E7E7E7E7"
-hardware-custom:
+# Usage: make fly-custom ARGS="--uri radio://0/80/2M/E7E7E7E7E7"
+fly-custom:
 	$(PYTHON) $(SCRIPTS_DIR)/launch_hardware.py $(ARGS)
 
 #------------------------------------------------------------------------------
@@ -163,6 +168,10 @@ test-hardware-quick:
 test-coverage:
 	@echo "$(BLUE)Running tests with coverage...$(NC)"
 	$(PYTHON) -m pytest tests/ -v --cov=src --cov-report=html
+
+test-camera-depth:
+	@echo "$(BLUE)Running camera with depth model tests...$(NC)"
+	$(PYTHON) scripts/test_aideck_camera.py --ip 10.0.0.239 --depth --duration 5
 
 #------------------------------------------------------------------------------
 # Cleanup

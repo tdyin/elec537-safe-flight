@@ -8,13 +8,18 @@ This script handles:
 - Sensor logging setup
 - Vision-based navigation with depth estimation
 - Safety monitoring and emergency procedures
+- Flight data logging to data/logs/
 
 Usage:
     python scripts/launch_hardware.py                  # Auto-discover Crazyflie
     python scripts/launch_hardware.py --uri radio://0/80/2M/E7E7E7E7E7
     python scripts/launch_hardware.py --goal 2 0 1     # Set goal position
     python scripts/launch_hardware.py --no-vision      # Disable vision (hover only)
+    python scripts/launch_hardware.py --hover          # Simple hover test
     python scripts/launch_hardware.py --preflight      # Run preflight checks only
+    python scripts/launch_hardware.py --viz            # Enable live depth visualization
+    python scripts/launch_hardware.py --max-duration 30  # Auto-land after 30 seconds
+    python scripts/launch_hardware.py --log-dir data/logs  # Custom log directory
     python scripts/launch_hardware.py --config path/to/config.yaml
 
 Prerequisites:
@@ -333,6 +338,8 @@ Examples:
     python scripts/launch_hardware.py --hover          # Simple hover test
     python scripts/launch_hardware.py --uri radio://0/80/2M/E7E7E7E7E7
     python scripts/launch_hardware.py --goal 2 0 1 --altitude 0.5
+    python scripts/launch_hardware.py --viz            # Live depth visualization
+    python scripts/launch_hardware.py --max-duration 30  # Auto-land after 30s
     python scripts/launch_hardware.py --config config/hardware.yaml
 """
     )
@@ -353,6 +360,12 @@ Examples:
                         help='Run preflight checks only, do not fly')
     parser.add_argument('--config', type=str, default='config/hardware.yaml',
                         help='Path to config file (default: config/hardware.yaml)')
+    parser.add_argument('--viz', action='store_true',
+                        help='Enable live depth visualization')
+    parser.add_argument('--max-duration', type=float, default=None,
+                        help='Maximum flight duration in seconds (auto-land after)')
+    parser.add_argument('--log-dir', type=str, default='data/logs',
+                        help='Directory for flight logs (default: data/logs)')
     
     args = parser.parse_args()
     
